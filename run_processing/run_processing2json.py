@@ -8,6 +8,8 @@ import hashlib
 import os
 import logging
 from datetime import datetime
+import pandas as pd
+import sys
 
 logging.basicConfig(format='%(levelname)s: %(asctime)s - %(message)s', level=logging.INFO)
 logger = logging.getLogger(__name__)
@@ -71,10 +73,26 @@ def load_json_file(file_path):
         logger.error(f"Error decoding JSON file: {file_path}")
     return None
 
-def parse_sample_name(sample_name):
-    """Parse the sample name to extract specimen, cohort, and institution."""
-    result = re.search(r"^((MoHQ-(JG|CS|CM|GC|MU|MR|XX|HM|CQ|IQ)-\w+)-\w+)-\w+-\w+(D|R)(T|N)", sample_name)
-    return result.group(1), result.group(2), result.group(3)
+def parse_samplesheet(df, sample_name):
+    """Parse the sample sheet df fetched from google sheets by name to extract specimen, cohort, and institution."""
+   
+    sample_df = df.loc[df['Submission Sample'] == sample_name]
+    if len(sample_df) == 0:
+        logger.error(f"Sample {sample_name} not present in samplesheet.")
+        sys.exit(1)
+    specimen = sample_df["Case"].values[0]
+    cohort = sample_df["Cohort"].values[0]
+    case_type = sample_df["CaseType"].values[0]
+    oncotree_code = re.findall(r"\(([^)]*)\)", sample_df["OncoTree Code"].values[0])
+    cancer_type = sample_df["OncoTree Code"].values[0].split(" (")[0]
+    tumor = True if sample_df["Type"].values[0] == "DT" or sample_df["Type"].values[0] == "RT" else False
+    alias = sample_df["Sample"].values[0]
+    if tumor == True:
+        index = sample_df["Index"].values[0] if sample_df["Index"].values[0] >=1 else 1
+    else:
+        index = None
+
+    return specimen, cohort, case_type, oncotree_code, cancer_type, tumor, alias, index
 
 def jsonify_run_processing(input_run_folder, fms_json, lanes_json, output, lanes, samples, nucleic_acid_type):
     """
@@ -102,12 +120,18 @@ def jsonify_run_processing(input_run_folder, fms_json, lanes_json, output, lanes
             "specimen": []
             }
 
+    sheet_id = "1yqWQQp3Qqs_9HpfKc6-fIzwPu6uRiZZahWUo4mbrHRU"
+    gid = "473627083"
+    url = f"https://docs.google.com/spreadsheets/d/{sheet_id}/export?format=csv&gid={gid}"
+    df = pd.read_csv(url)
+
     for _, lane_json in lanes_json.items():
         for readset_key, readset in lane_json["readsets"].items():
             sample_name = readset["sample_name"]
             # TBD: improve this to leverage permanent identifier and table in DB with normal/tumor pairing
-            if sample_name.startswith("MoHQ") and lane_json['lane'] in lanes and sample_name in samples:
-                specimen, cohort, institution = parse_sample_name(sample_name)
+            if sample_name.startswith(("MoHQ-", "MOHQ-")) and lane_json['lane'] in lanes and sample_name in samples:
+                # instead of parsing specimen, cohort, and institution from sample name, query google sheet with metadata
+                specimen, cohort, case_type, oncotree_code, cancer_type, tumor, alias, index = parse_samplesheet(df, sample_name)
                 # Check if the specimen is already in json_output["specimen"]
                 specimen_names = [spec["specimen_name"] for spec in json_output["specimen"]]
                 if specimen in specimen_names:
@@ -121,7 +145,7 @@ def jsonify_run_processing(input_run_folder, fms_json, lanes_json, output, lanes
                         "specimen_ext_src": None,
                         "specimen_name": specimen,
                         "specimen_cohort": cohort,
-                        "specimen_institution": institution,
+                        "specimen_institution": cohort.split("-")[1],
                         "sample": []
                         }
                     json_output["specimen"].append(specimen_json)
@@ -137,47 +161,48 @@ def jsonify_run_processing(input_run_folder, fms_json, lanes_json, output, lanes
                     sample_json = {
                         "sample_ext_id": int(readset["derived_sample_obj_id"]),
                         "sample_ext_src": "FREEZEMAN",
-                        "sample_name": sample_name,
-                        "sample_tumour": sample_name.endswith("T"), # improve to leverage info from sample sheet
+                        "sample_name": case_type,
+                        "alias": [sample_name],
+                        "sample_tumour": tumor,
+                        "sample_group_name": f"{specimen}_G{index}" if tumor == True else None,
                         "readset": []
                         }
                     specimen_json["sample"].append(sample_json)
-                if sample_name.endswith("RT"):
-                    fastq1 = readset["fastq_1"]["final_path"]
-                    fastq2 = readset["fastq_2"]["final_path"]
-                    file_json = [
-                        {
-                            "location_uri": f"abacus://{fastq1}",
-                            "file_name": f"{os.path.basename(fastq1)}",
-                            "file_md5sum": "TBD", #compute_md5(fastq1),
-                            "file_extra_metadata": {"read_type": "R1"},
-                            "file_deliverable": True
-                            },
-                        {
-                            "location_uri": f"abacus://{fastq2}",
-                            "file_name": f"{os.path.basename(fastq2)}",
-                            "file_md5sum": "TBD", #compute_md5(fastq2),
+                fastq1 = readset["fastq_1"]["path"]
+                fastq2 = readset["fastq_2"]["path"]
+                file_json = [
+                    {
+                        "location_uri": f"abacus://{input_run_folder.replace('/lb/robot/research', '/nb/Research')}/{fastq1}",
+                        "file_name": f"{os.path.basename(fastq1)}",
+                        "file_md5sum": "TBD", #compute_md5(fastq1),
+                        "file_extra_metadata": {"read_type": "R1"},
+                        "file_deliverable": True
+                        },
+                    {
+                        "location_uri": f"abacus://{fastq2}",
+                        "file_name": f"{os.path.basename(fastq2)}",
+                        "file_md5sum": "TBD", #compute_md5(fastq2),
                             "file_extra_metadata": {"read_type": "R2"},
                             "file_deliverable": True
                             }
                         ]
-                else:
-                    bam = readset["bam"]["final_path"]
-                    bai = readset["bai"]["final_path"]
-                    file_json = [
-                        {
-                            "location_uri": f"abacus://{bam}",
-                            "file_name": f"{os.path.basename(bam)}",
-                            "file_md5sum": "TBD", #compute_md5(bam),
-                            "file_deliverable": True
-                            },
-                        {
-                            "location_uri": f"abacus://{bai}",
-                            "file_name": f"{os.path.basename(bai)}",
-                            "file_md5sum": "TBD", #compute_md5(bai),
-                            "file_deliverable": True
-                            }
-                        ]
+                #else:
+                #    bam = readset["bam"]["final_path"]
+                #    bai = readset["bai"]["final_path"]
+                #    file_json = [
+                #        {
+                #            "location_uri": f"abacus://{bam}",
+                #            "file_name": f"{os.path.basename(bam)}",
+                #            "file_md5sum": "TBD", #compute_md5(bam),
+                #            "file_deliverable": True
+                #            },
+                #        {
+                #            "location_uri": f"abacus://{bai}",
+                #            "file_name": f"{os.path.basename(bai)}",
+                #            "file_md5sum": "TBD", #compute_md5(bai),
+                #            "file_deliverable": True
+                #            }
+                #        ]
                 for run_v in lane_json["run_validation"]:
                     if run_v.get("sample") == readset_key:
                         raw_reads_count = run_v.get("qc", {}).get("nb_reads")
@@ -385,6 +410,8 @@ def main():
 
     lanes_json_files = glob.glob(os.path.join(args.input, "report", "*.run_validation_report.json"))
     lanes_json = {os.path.basename(file): load_json_file(file) for file in lanes_json_files}
+
+    os.environ["SSL_CERT_FILE"] = "/sb/programs/itgenome/cabundle/fullbundle.pem"
 
     if args.sample:
         samples = list(args.sample)
