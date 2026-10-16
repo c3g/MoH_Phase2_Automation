@@ -162,8 +162,10 @@ def jsonify_run_processing(input_run_folder, fms_json, lanes_json, output, lanes
                         "sample_ext_id": int(readset["derived_sample_obj_id"]),
                         "sample_ext_src": "FREEZEMAN",
                         "sample_name": case_type,
-                        "alias": [sample_name],
+                        "sample_alias": [sample_name],
                         "sample_tumour": tumor,
+                        "sample_oncotree_code": oncotree_code if tumor == True else None,
+                        "sample_cancer_type": cancer_type if tumor == True else None,
                         "sample_group_name": f"{specimen}_G{index}" if tumor == True else None,
                         "readset": []
                         }
@@ -186,23 +188,7 @@ def jsonify_run_processing(input_run_folder, fms_json, lanes_json, output, lanes
                             "file_deliverable": True
                             }
                         ]
-                #else:
-                #    bam = readset["bam"]["final_path"]
-                #    bai = readset["bai"]["final_path"]
-                #    file_json = [
-                #        {
-                #            "location_uri": f"abacus://{bam}",
-                #            "file_name": f"{os.path.basename(bam)}",
-                #            "file_md5sum": "TBD", #compute_md5(bam),
-                #            "file_deliverable": True
-                #            },
-                #        {
-                #            "location_uri": f"abacus://{bai}",
-                #            "file_name": f"{os.path.basename(bai)}",
-                #            "file_md5sum": "TBD", #compute_md5(bai),
-                #            "file_deliverable": True
-                #            }
-                #        ]
+                
                 for run_v in lane_json["run_validation"]:
                     if run_v.get("sample") == readset_key:
                         raw_reads_count = run_v.get("qc", {}).get("nb_reads")
