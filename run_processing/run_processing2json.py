@@ -181,7 +181,7 @@ def jsonify_run_processing(input_run_folder, fms_json, lanes_json, output, lanes
                         "file_deliverable": True
                         },
                     {
-                        "location_uri": f"abacus://{fastq2}",
+                        "location_uri": f"abacus://{input_run_folder.replace('/lb/robot/research', '/nb/Research')}/{fastq2}",
                         "file_name": f"{os.path.basename(fastq2)}",
                         "file_md5sum": "TBD", #compute_md5(fastq2),
                             "file_extra_metadata": {"read_type": "R2"},
