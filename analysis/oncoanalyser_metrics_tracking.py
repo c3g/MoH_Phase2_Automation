@@ -25,7 +25,7 @@ def jsonify_oncoanalyser(results_dir, output_json):
     """
     # Run info: 
     json_output = {
-        "project_name": "MOH_Phase2", # name of proj in the db
+        "project_name": "MOH-Q", # name of proj in the db
         "operation_config_name": "oncoanalyser_config",
         "operation_config_version": "3.0.0",
         "operation_config_md5sum": None,     # TODO once conf is decided
@@ -77,13 +77,13 @@ def extract_purple(patient, sample, results_dir): # currently, patient is group_
         values = f.readline().rstrip('\n').split('\t')
     purity_tsv = dict(zip(header, values))
 
-    # metrics - for now: qc status, purity,ploidy, contamination, gender_check (flags to be added later)
+    # metrics - for now: qc status, purity,ploidy, contamination, sex_check (flags to be added later)
     metrics = [
         {"metric_name": "purple_qc_status", "metric_value": qc["QCStatus"], "metric_flag": None, "metric_deliverable": True},
         {"metric_name": "purity", "metric_value": purity_tsv["purity"], "metric_flag": None, "metric_deliverable": True},
         {"metric_name": "ploidy", "metric_value": purity_tsv["ploidy"], "metric_flag": None, "metric_deliverable": True},
         {"metric_name": "contamination", "metric_value": qc["Contamination"], "metric_flag": None, "metric_deliverable": True},
-        {"metric_name": "gender_check", "metric_value": f'{qc["AmberGender"]}/{qc["CobaltGender"]}', "metric_flag": None, "metric_deliverable": True},
+        {"metric_name": "sex_check", "metric_value": f'{qc["AmberGender"]}/{qc["CobaltGender"]}', "metric_flag": None, "metric_deliverable": True},
     ]
     return metrics
 
