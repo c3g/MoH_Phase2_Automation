@@ -37,6 +37,11 @@ if [ ! "$sample"  ]; then
 fi
 
 # source project tracking client environment
+source pt-cli_venv/bin/activate
+
 # call client to get samplesheet for Case/CaseType
 # exact call TBD
-pt-cli --url-root http://127.0.0.1:5000 digest readset_file --specimen_name 'MoHQ-GC-31-598' 
+SAMPLE_GROUPS=`pt-cli --url-root https://c3g-portal.dev-sd4h.ca --project MOH-Q sample_group list --sample_name ${sample}` # find group name for sample
+GROUP_NAME=$(echo "$SAMPLE_GROUPS" | jq -r '.[0].name')
+pt-cli --url-root https://c3g-portal.dev-sd4h.ca --project MOH-Q digest oncoanalyser_samplesheet --sample_group_name ${GROUP_NAME} --endpoint cardinal
+
