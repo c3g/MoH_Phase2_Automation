@@ -5,21 +5,25 @@
 THIS_SCRIPT=$(basename "$0")
 
 usage() {
-    echo "script usage: $THIS_SCRIPT -h [-s sample] [-n nucleic_acid_type]"
+    echo "script usage: $THIS_SCRIPT -h [-s sample] [-n nucleic_acid_type] [-g group]"
     echo "Usage:"
     echo " -h                               Display this help message."
     echo " -s <sample>                      Sample ('CaseType') for which to construct sample sheet. Should be a tumor or RNA sample."
-    echo " -n <nucleic_acid_type>           nucleic_acid_type to be considered for the sample sheet (either DNA or RNA, Default: both)."
+    echo " -n <nucleic_acid_type>           Nucleic_acid_type to be considered for the sample sheet (either DNA or RNA, Default: both)."
+    echo " -g <group>                       Sample group for which to construct sample sheet. To be used instead of -s <sample>."
     exit 1                      
 }
 
-while getopts 'hs::n:' OPTION; do
+while getopts 'hs::n::g:' OPTION; do
     case "$OPTION" in
         s)
             sample="$OPTARG"
             ;;
         n)
             nucleic_acid_type="$OPTARG"
+            ;;
+        g)
+            sample_group="$OPTARG"
             ;;
         h)
             usage
@@ -30,9 +34,15 @@ while getopts 'hs::n:' OPTION; do
     esac
 done
 
+# mutually exclusive arguments
+if [[ "$sample" && "$sample_group" ]]; then
+    echo -e "ERROR: Arguments -s and -g are mutually exclusive. Supply only one.\n"
+    usage
+fi
+
 # mandatory arguments
-if [ ! "$sample"  ]; then
-    echo -e "ERROR: Missing mandatory argument -s.\n"
+if [[ ! "$sample" && ! "$sample_group" ]]; then
+    echo -e "ERROR: Missing mandatory argument -s or -g.\n"
     usage
 fi
 
@@ -42,13 +52,17 @@ else
     TYPE_ARG=""
 fi
 
-echo ${TYPE_ARG}
 # source project tracking client environment
 source pt-cli_venv/bin/activate
 
 # call client to get samplesheet for Case/CaseType
 # exact call TBD
-SAMPLE_GROUPS=`pt-cli --url-root https://c3g-portal.dev-sd4h.ca --project MOH-Q sample_group list --sample_name ${sample}` # find group name for sample
-GROUP_NAME=$(echo "$SAMPLE_GROUPS" | jq -r '.[0].name')
+if [[ "$sample" ]]; then
+    SAMPLE_GROUPS=`pt-cli --url-root https://c3g-portal.dev-sd4h.ca --project MOH-Q sample_group list --sample_name ${sample}` # find group name for sample
+    GROUP_NAME=$(echo "$SAMPLE_GROUPS" | jq -r '.[0].name')
+else
+    GROUP_NAME=${sample_group}
+fi
+
 pt-cli --url-root https://c3g-portal.dev-sd4h.ca --project MOH-Q digest oncoanalyser_samplesheet --sample_group_name ${GROUP_NAME} --endpoint cardinal ${TYPE_ARG}
 
