@@ -1,9 +1,12 @@
 #!/usr/bin/env python3
 
 import argparse
+import csv
 import json
 import os
 import logging
+
+from compression import gzip
 
 logging.basicConfig(format='%(levelname)s: %(asctime)s - %(message)s', level=logging.INFO)
 logger = logging.getLogger(__name__)
@@ -25,7 +28,7 @@ def jsonify_oncoanalyser(results_dir, output_json):
     """
     # Run info: 
     json_output = {
-        "project_name": "MOH-Q", # name of proj in the db
+        "project_name": "MOH-Q",
         "operation_config_name": "oncoanalyser_config",
         "operation_config_version": "3.0.0",
         "operation_config_md5sum": None,     # TODO once conf is decided
@@ -86,6 +89,39 @@ def extract_purple(patient, sample, results_dir): # currently, patient is group_
         {"metric_name": "sex_check", "metric_value": f'{qc["AmberGender"]}/{qc["CobaltGender"]}', "metric_flag": None, "metric_deliverable": True},
     ]
     return metrics
+
+def extract_qsee(patient, tumour_sample, results_dir):
+    """
+    QSEE QC metrics (value + flag) for the tumour and normal samples.
+    Return: dict (sample name -> list of metrics)
+    """
+
+    # todo : remove purity and contamination, either from qsee or from purple extract
+    # pro for qsee: already has pass/fail flags for each metric, though it doesn't include all the metrics 
+    # and we are already giving it qsee thresholds, which we can update manually
+    # maybe need a fallback though in case qsee is missing or we're using older onco 
+
+
+    flags = {"PASS": "PASS", "WARN": "WARNING", "FAIL": "FAILED"} # to match genpipes
+
+    qsee_file = os.path.join(results_dir, patient, 'qsee', f'{tumour_sample}.qsee.status.tsv.gz')
+
+    if not os.path.exists(qsee_file):
+        print(f"WARNING: missing {qsee_file}")
+        return {}
+
+    metrics = {}
+    with gzip.open(qsee_file, 'rt', encoding='utf-8') as f:
+        for row in csv.DictReader(f, delimiter='\t'):
+            metric = {
+                "metric_name": row["FeatureName"].lower(),
+                "metric_value": row["FeatureValue"],
+                "metric_flag": flags.get(row["QcStatus"], row["QcStatus"]),
+                "metric_deliverable": True
+            }
+            metrics.setdefault(row["SampleId"], []).append(metric) # normal and tumor have different SampleIds
+    return metrics
+
 
 def extract_bamtools(patient, sample, results_dir): #todo
 
