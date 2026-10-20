@@ -25,7 +25,7 @@ def jsonify_oncoanalyser(results_dir, output_json):
     """
     # Run info: 
     json_output = {
-        "project_name": "MOH_Phase2", # name of proj in the db
+        "project_name": "MOH-Q", # name of proj in the db
         "operation_config_name": "oncoanalyser_config",
         "operation_config_version": "3.0.0",
         "operation_config_md5sum": None,     # TODO once conf is decided
