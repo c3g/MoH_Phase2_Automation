@@ -8,7 +8,7 @@ usage() {
     echo "script usage: $THIS_SCRIPT -h [-s sample] [-n nucleic_acid_type]"
     echo "Usage:"
     echo " -h                               Display this help message."
-    echo " -s <sample>                      Sample ('CaseType') for which to construct sample sheet"
+    echo " -s <sample>                      Sample ('CaseType') for which to construct sample sheet. Should be a tumor or RNA sample."
     echo " -n <nucleic_acid_type>           nucleic_acid_type to be considered for the sample sheet (either DNA or RNA, Default: both)."
     exit 1                      
 }
