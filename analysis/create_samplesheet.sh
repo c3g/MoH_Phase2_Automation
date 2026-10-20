@@ -5,7 +5,7 @@
 THIS_SCRIPT=$(basename "$0")
 
 usage() {
-    echo "script usage: $THIS_SCRIPT -h [-l location] [-d destination] [-s sample]"
+    echo "script usage: $THIS_SCRIPT -h [-s sample] [-n nucleic_acid_type]"
     echo "Usage:"
     echo " -h                               Display this help message."
     echo " -s <sample>                      Sample ('CaseType') for which to construct sample sheet"
@@ -36,6 +36,13 @@ if [ ! "$sample"  ]; then
     usage
 fi
 
+if [ "$nucleic_acid_type" ]; then
+    TYPE_ARG="--nucleic_acid_type ${nucleic_acid_type}"
+else
+    TYPE_ARG=""
+fi
+
+echo ${TYPE_ARG}
 # source project tracking client environment
 source pt-cli_venv/bin/activate
 
@@ -43,5 +50,5 @@ source pt-cli_venv/bin/activate
 # exact call TBD
 SAMPLE_GROUPS=`pt-cli --url-root https://c3g-portal.dev-sd4h.ca --project MOH-Q sample_group list --sample_name ${sample}` # find group name for sample
 GROUP_NAME=$(echo "$SAMPLE_GROUPS" | jq -r '.[0].name')
-pt-cli --url-root https://c3g-portal.dev-sd4h.ca --project MOH-Q digest oncoanalyser_samplesheet --sample_group_name ${GROUP_NAME} --endpoint cardinal
+pt-cli --url-root https://c3g-portal.dev-sd4h.ca --project MOH-Q digest oncoanalyser_samplesheet --sample_group_name ${GROUP_NAME} --endpoint cardinal ${TYPE_ARG}
 
