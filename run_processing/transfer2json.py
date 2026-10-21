@@ -53,8 +53,6 @@ def main():
 def _append_file(json_output, readset_name, src_location_uri, dest_location_uri):
     """Append a file entry to an existing readset or create a new one."""
     
-    ### ADD SOMETHING HERE TO MATCH PERSISTENT ID TO READSET IN DB ###
-    
     for readset in json_output["readset"]:
         if readset["readset_name"] == readset_name:
             readset["file"].append(
@@ -68,6 +66,7 @@ def _append_file(json_output, readset_name, src_location_uri, dest_location_uri)
         json_output["readset"].append(
                 {
                     "readset_name": readset_name,
+                    "readset_state": "VALID",
                     "file": [
                         {
                             "src_location_uri": src_location_uri,
@@ -82,7 +81,7 @@ def jsonify_delivery_transfer(batch_file, source, destination, delivery_json, ou
     ### TBD ###
 
 def jsonify_raw_data_transfer(batch_file, source, destination, output, operation_cmd_line, start=None, stop=None):
-    """Writing transfer json based on batch file with path-index offsets per prefix."""
+    """Writing transfer json based on batch file."""
     start = start.replace('.', ':').replace('T', ' ') if start else None
     stop = stop.replace('.', ':').replace('T', ' ') if stop else None
 
@@ -99,51 +98,19 @@ def jsonify_raw_data_transfer(batch_file, source, destination, output, operation
             line = raw_line.strip()
 
             fields = line.split()
-            if len(fields) < 2:
+            if len(fields) < 3:
                 continue # malformed line
 
-            src_path = fields[0]
-            dest_path = fields[1]
-
-            path_l = src_path.split('/')
-            path_d = dest_path.split('/')
+            readset = fields[0]
+            src_path = fields[1]
+            dest_path = fields[2]
 
             # Build URIs once
             src_location_uri = f"{source}://{src_path}"
             dest_location_uri = f"{destination}://{dest_path.strip()}"
 
-        ### READSET NAME NEEDS TO BE PARSED DIFFERENTLY HERE. FILE NAME WILL ONLY CONTAIN PERSISTENT IDS ###
-
-            if "R1.fastq.gz" in dest_path:
-                try:
-                    readset_name = f"{path_d[-1].replace('.R1.fastq.gz', '')}"
-                except IndexError:
-                    continue
-                _append_file(json_output, readset_name, src_location_uri, dest_location_uri)
+            _append_file(json_output, readset_name, src_location_uri, dest_location_uri)
             
-            elif "R2.fastq.gz" in dest_path:
-                try:
-                    readset_name = f"{path_d[-1].replace('.R2.fastq.gz', '')}"
-                except IndexError:
-                    continue
-                _append_file(json_output, readset_name, src_location_uri, dest_location_uri)
-            
-            elif ".cram.crai" in dest_path:
-                try:
-                    readset_name = f"{path_l[-1].replace('.sorted.cram.crai', '')}"
-                except IndexError:
-                    continue
-
-                _append_file(json_output, readset_name, src_location_uri, dest_location_uri)
-
-            elif ".cram" in dest_path:
-                try:
-                    readset_name = f"{path_l[-1].replace('.sorted.cram', '')}"
-                except IndexError:
-                    continue
-
-                _append_file(json_output, readset_name, src_location_uri, dest_location_uri)
-
     with open(output, 'w', encoding='utf-8') as file:
         json.dump(json_output, file, ensure_ascii=False, indent=4)
 

@@ -71,15 +71,15 @@ jq --arg lane "$lane" -r '
   .sample_name as $sample_name | 
   .readset[]? | 
   select(.readset_lane == $lane) | 
-  .readset_lane as $readset_lane |
+  .readset_name as $readset_name |
   .file[]? | 
   select(.location_uri != null) | 
-  "\($institution) \($specimen) \($cohort) \($sample_name) \($readset_lane) \(.location_uri | sub("^abacus://"; ""))"
-  ' "$run_processing_json" | while read -r institution specimen cohort sample_name readset_lane file; do
+  "\($institution) \($specimen) \($cohort) \($sample_name) \($readset_name) \(.location_uri | sub("^abacus://"; ""))"
+  ' "$run_processing_json" | while read -r institution specimen cohort sample_name readset_name file; do
   file_basename=$(basename "$file")
-  echo "${institution} ${specimen} ${cohort} ${sample_name} ${readset_lane} ${file}"
-  echo "${file#"$SRC_BASE_PATH"} ${DEST_LOC#"$DEST_BASE_PATH"}/$sample_name/$file_basename" >> "$TEMP/$LISTFILE"
-  echo "$file $DEST_LOC/$institution/$cohort/$specimen/$sample_name/$file_basename" >> "$TEMP/$LISTFILE_FULLPATH"
+  echo "${institution} ${specimen} ${cohort} ${sample_name} ${readset_name} ${file}"
+  echo "${file#"$SRC_BASE_PATH"} ${DEST_LOC#"$DEST_BASE_PATH"}/$institution/$cohort/$specimen/$file_basename" >> "$TEMP/$LISTFILE"
+  echo "${readset_name} $file $DEST_LOC/$institution/$cohort/$specimen/$file_basename" >> "$TEMP/$LISTFILE_FULLPATH"
   echo "$file,$sample_name/$file_basename" >> "$TEMP/$LOGFILE"
 done
 
