@@ -6,7 +6,7 @@ import json
 import os
 import logging
 
-from compression import gzip
+import gzip
 
 logging.basicConfig(format='%(levelname)s: %(asctime)s - %(message)s', level=logging.INFO)
 logger = logging.getLogger(__name__)
@@ -60,12 +60,47 @@ def get_job_info(results_dir):
 
     pass
 
-def extract_purple(patient, sample, results_dir): # currently, patient is group_id
+
+def extract_qsee(group, tumour_sample, results_dir):
     """
-    Purple QC metrics (tumor).
+    QSEE QC metrics (value + flag) for the tumour and normal samples
+    QSEE flags are already calculated based on the qsee thresholds file (in configs). 
+    Return: dict (sample name -> list of metrics)
+    """
+
+    # pro for qsee: already has pass/fail flags for each metric, though it doesn't include all the metrics 
+    # and we are already giving it qsee thresholds, which we can update manually
+    # maybe need a fallback though in case qsee is missing or we're using older onco 
+
+
+    flags = {"PASS": "PASS", "WARN": "WARNING", "FAIL": "FAILED"} # to match genpipes
+
+    qsee_file = os.path.join(results_dir, group, 'qsee', f'{tumour_sample}.qsee.status.tsv.gz')
+
+    if not os.path.exists(qsee_file):
+        logger.warning(f"missing {qsee_file}")
+        return {}
+
+    metrics = {}
+    with gzip.open(qsee_file, 'rt', encoding='utf-8') as f:
+        for row in csv.DictReader(f, delimiter='\t'):
+            metric = {
+                "metric_name": row["FeatureName"].lower(),
+                "metric_value": row["FeatureValue"],
+                "metric_flag": flags.get(row["QcStatus"], row["QcStatus"]),
+                "metric_deliverable": True
+            }
+            metrics.setdefault(row["SampleId"], []).append(metric) # normal and tumor have different SampleIds
+    return metrics
+
+def extract_purple(group, sample, results_dir):
+    """
+    Purple QC metrics (tumor) that QSEE doesn't cover.
     Return: list
     """
-    purple_dir = os.path.join(results_dir, patient, 'purple')
+    #todo: add flags 
+
+    purple_dir = os.path.join(results_dir, group, 'purple')
 
     qc = {}
     # purple qc
@@ -83,51 +118,60 @@ def extract_purple(patient, sample, results_dir): # currently, patient is group_
     # metrics - for now: qc status, purity,ploidy, contamination, sex_check (flags to be added later)
     metrics = [
         {"metric_name": "purple_qc_status", "metric_value": qc["QCStatus"], "metric_flag": None, "metric_deliverable": True},
-        {"metric_name": "purity", "metric_value": purity_tsv["purity"], "metric_flag": None, "metric_deliverable": True},
-        {"metric_name": "ploidy", "metric_value": purity_tsv["ploidy"], "metric_flag": None, "metric_deliverable": True},
-        {"metric_name": "contamination", "metric_value": qc["Contamination"], "metric_flag": None, "metric_deliverable": True},
+        {"metric_name": "ploidy", "metric_value": purity_tsv["ploidy"], "metric_flag": None, "metric_deliverable": True}, 
         {"metric_name": "sex_check", "metric_value": f'{qc["AmberGender"]}/{qc["CobaltGender"]}', "metric_flag": None, "metric_deliverable": True},
     ]
     return metrics
 
-def extract_qsee(patient, tumour_sample, results_dir):
+
+
+def extract_bamtools(group, sample, results_dir):
     """
-    QSEE QC metrics (value + flag) for the tumour and normal samples.
-    Return: dict (sample name -> list of metrics)
+    Bamtools metrics that QSEE does not report.
+    Return: list
     """
 
-    # todo : remove purity and contamination, either from qsee or from purple extract
-    # pro for qsee: already has pass/fail flags for each metric, though it doesn't include all the metrics 
-    # and we are already giving it qsee thresholds, which we can update manually
-    # maybe need a fallback though in case qsee is missing or we're using older onco 
+    #todo: add flags 
 
 
-    flags = {"PASS": "PASS", "WARN": "WARNING", "FAIL": "FAILED"} # to match genpipes
+    bamtools_dir = os.path.join(results_dir, group, 'bamtools', sample)
+    summary_file = os.path.join(bamtools_dir, f'{sample}.bam_metric.summary.tsv')
+    frag_file = os.path.join(bamtools_dir, f'{sample}.bam_metric.frag_length.tsv')
 
-    qsee_file = os.path.join(results_dir, patient, 'qsee', f'{tumour_sample}.qsee.status.tsv.gz')
+    if not os.path.exists(summary_file):
+        logger.warning(f"missing {summary_file}")
+        return []
 
-    if not os.path.exists(qsee_file):
-        print(f"WARNING: missing {qsee_file}")
-        return {}
+    # summary.tsv for coverage metrics
+    with open(summary_file, encoding='utf-8') as f:
+        header = f.readline().rstrip('\n').split('\t')
+        values = f.readline().rstrip('\n').split('\t')
+    summary = dict(zip(header, values))
 
-    metrics = {}
-    with gzip.open(qsee_file, 'rt', encoding='utf-8') as f:
-        for row in csv.DictReader(f, delimiter='\t'):
-            metric = {
-                "metric_name": row["FeatureName"].lower(),
-                "metric_value": row["FeatureValue"],
-                "metric_flag": flags.get(row["QcStatus"], row["QcStatus"]),
-                "metric_deliverable": True
-            }
-            metrics.setdefault(row["SampleId"], []).append(metric) # normal and tumor have different SampleIds
+    metrics = [
+        {"metric_name": "total_reads", "metric_value": summary["TotalReads"], "metric_flag": None, "metric_deliverable": True},
+        {"metric_name": "duplicate_reads_count", "metric_value": summary["DuplicateReads"], "metric_flag": None, "metric_deliverable": True},
+        {"metric_name": "median_coverage", "metric_value": summary["MedianCoverage"], "metric_flag": None, "metric_deliverable": True},
+    ]
+
+    # frag_length.tsv: mean insert size, computed from the histogram (length, count)
+    if os.path.exists(frag_file):
+        total = 0
+        weighted = 0
+        with open(frag_file, encoding='utf-8') as f:
+            next(f)  # skip header
+            for line in f:
+                length, count = line.rstrip('\n').split('\t')
+                total += int(count)
+                weighted += int(length) * int(count)
+
+        metrics.append({"metric_name": "mean_insert_size", "metric_value": f'{weighted / total:.1f}', "metric_flag": None, "metric_deliverable": True})
+    else:
+        logger.warning(f"missing {frag_file}")
+
     return metrics
 
-
-def extract_bamtools(patient, sample, results_dir): #todo
-
-    return []
-
-def extract_isofox(patient, sample, results_dir): # todo
+def extract_isofox(group, sample, results_dir): # todo
 
     return []
 
