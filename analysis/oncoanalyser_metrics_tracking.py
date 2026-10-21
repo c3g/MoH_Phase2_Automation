@@ -61,6 +61,14 @@ def get_job_info(results_dir):
     pass
 
 
+# currently 
+# group:  group_id from the samplesheet (e.g. MoHQ-CQ-36-94).
+#   onco writes all results of a run to results/<group>/.
+# sample: sample_id from the samplesheet: one normal DNA, tumor DNA or tumor RNA sample
+#  (e.g. MoHQ-CQ-36-94-TEP087-1FDT). onco names its output files after it.
+
+# IMPORTANT: some RNA results are named after the tumor DNA
+
 def extract_qsee(group, tumour_sample, results_dir):
     """
     QSEE QC metrics (value + flag) for the tumour and normal samples
@@ -171,9 +179,39 @@ def extract_bamtools(group, sample, results_dir):
 
     return metrics
 
-def extract_isofox(group, sample, results_dir): # todo
+def extract_isofox(group, sample, results_dir):
+    """
+    Isofox RNA QC metrics.
+    The summary file is named after the tumour DNA sample, not the RNA sample.
+    Return: list
+    """
 
-    return []
+    # todo: add flags 
+
+
+    flags = {"PASS": "PASS", "WARN": "WARNING", "FAIL": "FAILED"}  # to match genpipes??? 
+
+    summary_file = os.path.join(results_dir, group, 'isofox', f'{sample}.isf.summary.tsv')
+
+    if not os.path.exists(summary_file):
+        logger.warning(f"missing {summary_file}")
+        return []
+
+    # summary.tsv
+    with open(summary_file, encoding='utf-8') as f:
+        header = f.readline().rstrip('\n').split('\t')
+        values = f.readline().rstrip('\n').split('\t')
+    summary = dict(zip(header, values))
+
+    metrics = [
+        {"metric_name": "isofox_qc_status", "metric_value": summary["QcStatus"], "metric_flag": flags.get(summary["QcStatus"], summary["QcStatus"]), "metric_deliverable": True},
+        {"metric_name": "total_fragments", "metric_value": summary["TotalFragments"], "metric_flag": None, "metric_deliverable": True},
+        {"metric_name": "duplicate_fragments", "metric_value": summary["DuplicateFragments"], "metric_flag": None, "metric_deliverable": True},
+        {"metric_name": "spliced_fragment_perc", "metric_value": summary["SplicedFragmentPerc"], "metric_flag": None, "metric_deliverable": True},
+        {"metric_name": "chimeric_fragment_perc", "metric_value": summary["ChimericFragmentPerc"], "metric_flag": None, "metric_deliverable": True},
+        {"metric_name": "spliced_gene_count", "metric_value": summary["SplicedGeneCount"], "metric_flag": None, "metric_deliverable": True},
+    ]
+    return metrics
 
 if __name__ == '__main__':
     main()
