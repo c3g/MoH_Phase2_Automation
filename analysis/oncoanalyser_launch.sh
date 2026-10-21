@@ -30,6 +30,9 @@ while getopts 'hs:' OPTION; do
     esac
 done
 
+# TBD WHERE PHASE2 will be run? MOH dir has a lot of files from phase 1. Better to start fresh?
+MOH_DIR=/project/60007/MOH_PHASE2
+
 # call to DB to check on status of readsets linked to the same sample
 
 # if all readsets for sample are valid (transferred) find other members of group(s)
@@ -43,3 +46,39 @@ done
 # # if sample is RNA and DNA available, but not yet finished running, do nothing (will need to think of another trigger? Maybe upon oncoanalyser finishing?)
 
 # if sample is RNA and DNA has already been run, launch with full sample sheet
+ANALYSIS_DIR=${MOH_DIR}/${CASE}/${GROUP}
+~/MoH_Phase2_Automation/analysis/create_samplesheet.sh ${NUCLEIC_ACID_TYPE} -g ${GROUP} -o ${ANALYSIS_DIR}
+
+TIMESTAMP=$(date +%FT%H.%M.%S)
+
+# create oncoanalyser submission script
+echo """#!/bin/bash
+#SBATCH --job-name=oncoanalyser_${GROUP}
+#SBATCH --time=72:00:00
+#SBATCH --cpus-per-task=4
+#SBATCH --mem=32G
+#SBATCH -o ${GROUP}.oncoanalyser_${TIMESTAMP}.out
+
+umask 007
+module use /cvmfs/soft.mugqic/CentOS6/modulefiles
+module purge && module load mugqic/oncoanalyser/3.0.0
+
+export NXF_HOME=${MOH_DIR}/oncoanalyser_prod/nxf_home
+export ONCO_SITE_DIR=${MOH_DIR}/oncoanalyser_prod/config
+
+export NXF_OPTS="\$NXF_OPTS -Xms4g -Xmx12g"
+export APPTAINER_TMPDIR=$ANALYSIS_DIR/tmp
+mkdir -p \$APPTAINER_TMPDIR
+
+cd $ANALYSIS_DIR && \\
+nextflow run $ONCOANALYSER_HOME -profile singularity \\
+  -c \${ONCOANALYSER_CONFIGS}/onco.config,\$ONCO_SITE_DIR/cardinal_site.config \\
+  --mode wgts --genome GRCh38_hmf \\
+  --input ${GROUP}.samplesheet.csv --outdir results \\
+  -resume
+""" > ${ANALYSIS_DIR}/${GROUP}.oncoanalyser_${TIMESTAMP}.submit
+
+sbatch ${ANALYSIS_DIR}/${GROUP}.oncoanalyser_${TIMESTAMP}.submit
+
+echo "Oncoanalyser launched for $GROUP."
+# add oncoanalyser launch json and ingest into DB to set operation to RUNNING
