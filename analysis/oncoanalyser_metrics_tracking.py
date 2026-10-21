@@ -61,7 +61,7 @@ def get_job_info(results_dir):
     pass
 
 
-def extract_qsee(patient, tumour_sample, results_dir):
+def extract_qsee(group, tumour_sample, results_dir):
     """
     QSEE QC metrics (value + flag) for the tumour and normal samples
     QSEE flags are already calculated based on the qsee thresholds file (in configs). 
@@ -75,10 +75,10 @@ def extract_qsee(patient, tumour_sample, results_dir):
 
     flags = {"PASS": "PASS", "WARN": "WARNING", "FAIL": "FAILED"} # to match genpipes
 
-    qsee_file = os.path.join(results_dir, patient, 'qsee', f'{tumour_sample}.qsee.status.tsv.gz')
+    qsee_file = os.path.join(results_dir, group, 'qsee', f'{tumour_sample}.qsee.status.tsv.gz')
 
     if not os.path.exists(qsee_file):
-        print(f"WARNING: missing {qsee_file}")
+        logger.warning(f"missing {qsee_file}")
         return {}
 
     metrics = {}
@@ -93,14 +93,14 @@ def extract_qsee(patient, tumour_sample, results_dir):
             metrics.setdefault(row["SampleId"], []).append(metric) # normal and tumor have different SampleIds
     return metrics
 
-def extract_purple(patient, sample, results_dir):
+def extract_purple(group, sample, results_dir):
     """
     Purple QC metrics (tumor) that QSEE doesn't cover.
     Return: list
     """
     #todo: add flags 
 
-    purple_dir = os.path.join(results_dir, patient, 'purple')
+    purple_dir = os.path.join(results_dir, group, 'purple')
 
     qc = {}
     # purple qc
@@ -125,7 +125,7 @@ def extract_purple(patient, sample, results_dir):
 
 
 
-def extract_bamtools(patient, sample, results_dir):
+def extract_bamtools(group, sample, results_dir):
     """
     Bamtools metrics that QSEE does not report.
     Return: list
@@ -134,7 +134,7 @@ def extract_bamtools(patient, sample, results_dir):
     #todo: add flags 
 
 
-    bamtools_dir = os.path.join(results_dir, patient, 'bamtools', sample)
+    bamtools_dir = os.path.join(results_dir, group, 'bamtools', sample)
     summary_file = os.path.join(bamtools_dir, f'{sample}.bam_metric.summary.tsv')
     frag_file = os.path.join(bamtools_dir, f'{sample}.bam_metric.frag_length.tsv')
 
@@ -171,7 +171,7 @@ def extract_bamtools(patient, sample, results_dir):
 
     return metrics
 
-def extract_isofox(patient, sample, results_dir): # todo
+def extract_isofox(group, sample, results_dir): # todo
 
     return []
 
