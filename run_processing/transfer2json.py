@@ -14,7 +14,7 @@ def main():
     parser = argparse.ArgumentParser(prog='transfer2json.py', description="Creates json file for project tracking database for a given transfer of data.")
     parser.add_argument('-i', '--input', required=True, help="Batch file from Globus.")
     parser.add_argument('-s', '--source', required=True, help="Source cluster of the transfer.")
-    parser.add_argument('-d', '--destination', required=True, help="Cluster of destination for the transfer.")
+    parser.add_argument('-d', '--destination', required=True, help="Cluster or bucket of destination for the transfer.")
     parser.add_argument('-o', '--output', required=False, help="Output json filename (Default: <input_filename>.json).")
     parser.add_argument('--start', required=False, help="Start time of operation (format: YYYY-MM-DDTHH.MM.SS).")
     parser.add_argument('--stop', required=False, help="End time of operation (format: YYYY-MM-DDTHH.MM.SS).")

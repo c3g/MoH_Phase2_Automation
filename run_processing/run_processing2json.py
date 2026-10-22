@@ -128,7 +128,6 @@ def jsonify_run_processing(input_run_folder, fms_json, lanes_json, output, lanes
     for _, lane_json in lanes_json.items():
         for readset_key, readset in lane_json["readsets"].items():
             sample_name = readset["sample_name"]
-            # TBD: improve this to leverage permanent identifier and table in DB with normal/tumor pairing
             if sample_name.startswith(("MoHQ-", "MOHQ-")) and lane_json['lane'] in lanes and sample_name in samples:
                 # instead of parsing specimen, cohort, and institution from sample name, query google sheet with metadata
                 specimen, cohort, case_type, oncotree_code, cancer_type, tumor, alias, index = parse_samplesheet(df, sample_name)

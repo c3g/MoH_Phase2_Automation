@@ -41,7 +41,7 @@ fi
 #DEST_EP=$(jq -r --arg dest "$destination_lowercase" '.robot_endpoints[$dest].uuid' "$ROBOT_EP")
 DEST_EP="2cef98ab-568d-4136-9e0c-8391215dd929"
 DEST_LOC="MOH-Q"
-destination='bucket'
+destination="c3g-data-repos"
 # Abacus Endpoint
 ABA_EP='fb9e89bd-7bfb-4842-9c4d-9190eb946160'
 SRC_BASE_PATH="/nb/Research/freezeman-processing"
@@ -101,7 +101,7 @@ if [ $? -eq 0  ]; then
     timestamp_end=$(date "+%Y-%m-%dT%H.%M.%S")
     ~/MoH_Phase2_Automation/transfer2json.py --input $TEMP/$LISTFILE_FULLPATH --source "abacus" --destination $destination --output $TRANSFER_JSON --operation_cmd_line "globus transfer --sync-level mtime --jmespath 'task_id' --format=UNIX --submission-id $sub_id --label $runfolder --batch $TEMP/$LISTFILE $ABA_EP $DEST_EP" --start $timestamp_start --stop $timestamp_end
     echo "Ingesting transfer $TRANSFER_JSON..."
-    pt-cli ingest transfer --input-json $TRANSFER_JSON
+    pt-cli --url-root https://c3g-portal.dev-sd4h.ca --project MOH-Q ingest transfer --input-json $TRANSFER_JSON
    # add ping to jenkins for finished transfer?
 else
     echo "$task_id failed!"

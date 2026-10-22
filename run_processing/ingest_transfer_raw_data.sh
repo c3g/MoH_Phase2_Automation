@@ -6,13 +6,15 @@ usage() {
     echo "Usage:"
     echo " -h                               Display this help message."
     echo " -r <runfolder>                   RunFolder found in abacus under /lb/robot/research/freezeman-processing/<sequencer>/<year>/<runfolder>."
-    echo " -d <destination>                 Destination of the transfer (default: bucket mounted on cardinal)."
+    echo " -d <destination>                 Destination of the transfer (default: c3g-data-repos)."
     echo " -n <nucleic_acid_type>           nucleic_acid_type to be considered for the transfer (either DNA or RNA, Default: ALL)."
     echo " -l <lane>                        Lane(s) to be transferred."
     echo " -s <sample>                      Sample Name(s) (as they appear in the json file from Freezeman) (default: all)."
     echo " -x <xsample>                     Sample Name(s) to be EXCLUDED (as they appear in the json file from Freezeman) (default: none)."
     exit 1                         
 }
+
+destination="c3g-data-repos"
 
 while getopts 'hr:d::n::l::s::x:' OPTION; do
   case "$OPTION" in
