@@ -108,7 +108,7 @@ if [ $? -eq 0  ]; then
          -H "Content-Type: application/json" \
          -X POST \
          -d @${TRANSFER_JSON} \
-         "http://jenkins.c3g-app.sd4h.ca/generic-webhook-trigger/invoke?token=8JPBpzNStBox1tFL"
+         "http://jenkins.c3g-app.sd4h.ca/generic-webhook-trigger/invoke?token=7BM5klS2iGh0TmIY"
 
 else
     echo "$task_id failed!"
