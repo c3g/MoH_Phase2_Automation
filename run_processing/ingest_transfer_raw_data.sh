@@ -5,7 +5,7 @@ usage() {
     echo "script usage: ingest_transfer_raw_data.sh -h [-r runfolder] [-l lane] [-s sample] [-x xsample]"
     echo "Usage:"
     echo " -h                               Display this help message."
-    echo " -r <runfolder>                   RunFolder found in abacus under /lb/robot/research/freezeman-processing/<sequencer>/<year>/<runfolder>."
+    echo " -r <runfolder>                   RunFolder found in abacus under /nb/Research/freezeman-processing/<sequencer>/<year>/<runfolder>."
     echo " -d <destination>                 Destination of the transfer (default: c3g-data-repos)."
     echo " -n <nucleic_acid_type>           nucleic_acid_type to be considered for the transfer (either DNA or RNA, Default: ALL)."
     echo " -l <lane>                        Lane(s) to be transferred."
