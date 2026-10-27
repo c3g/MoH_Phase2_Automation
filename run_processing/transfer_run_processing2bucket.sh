@@ -103,13 +103,19 @@ if [ $? -eq 0  ]; then
     echo "Ingesting transfer $TRANSFER_JSON..."
     pt-cli --url-root https://c3g-portal.dev-sd4h.ca --project MOH-Q ingest transfer --input-json $TRANSFER_JSON
    
-    # add ping to jenkins for finished transfer?
+    # add ping to jenkins for finished transfer
+    jq -r '
+      .readset[]? |
+      .readset_name as $readset_name |
+      "\($readset_name)"
+    ' "$TRANSFER_JSON" | while read -r readset_name; do
     curl -v \
          -H "Content-Type: application/json" \
          -X POST \
-         -d @${TRANSFER_JSON} \
-         "http://jenkins.c3g-app.sd4h.ca/generic-webhook-trigger/invoke?token=7BM5klS2iGh0TmIY"
-
+         -d '{"readset_name": "'"$readset_name"'"}' \
+         "https://jenkins.c3g-app.sd4h.ca/generic-webhook-trigger/invoke?token=7BM5klS2iGh0TmIY"
+    sleep 5
+    done
 else
     echo "$task_id failed!"
 fi
