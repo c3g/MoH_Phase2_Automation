@@ -31,6 +31,7 @@ while getopts 'hr:' OPTION; do
     esac
 done
 
+source ~/project_tracking_cli/venv/bin/activate
 # TBD WHERE PHASE2 will be run? MOH dir has a lot of files from phase 1. Better to start fresh?
 MOH_DIR=/project/60007/MOH_PHASE2
 
@@ -53,33 +54,12 @@ ANALYSIS_DIR=${MOH_DIR}/${CASE}/${GROUP}
 TIMESTAMP=$(date +%FT%H.%M.%S)
 
 # create oncoanalyser submission script
-echo """#!/bin/bash
-#SBATCH --job-name=oncoanalyser_${GROUP}
-#SBATCH --time=72:00:00
-#SBATCH --cpus-per-task=4
-#SBATCH --mem=32G
-#SBATCH -o ${GROUP}.oncoanalyser_${TIMESTAMP}.out
-
-umask 007
-module use /cvmfs/soft.mugqic/CentOS6/modulefiles
-module purge && module load mugqic/oncoanalyser/3.0.0
-
-export NXF_HOME=${MOH_DIR}/oncoanalyser_prod/nxf_home
-export ONCO_SITE_DIR=${MOH_DIR}/oncoanalyser_prod/config
-
-export NXF_OPTS="\$NXF_OPTS -Xms4g -Xmx12g"
-export APPTAINER_TMPDIR=$ANALYSIS_DIR/tmp
-mkdir -p \$APPTAINER_TMPDIR
-
-cd $ANALYSIS_DIR && \\
-nextflow run $ONCOANALYSER_HOME -profile singularity \\
-  -c \${ONCOANALYSER_CONFIGS}/onco.config,\$ONCO_SITE_DIR/cardinal_site.config \\
-  --mode wgts --genome GRCh38_hmf \\
-  --input ${GROUP}.samplesheet.csv --outdir results \\
-  -resume
-""" > ${ANALYSIS_DIR}/${GROUP}.oncoanalyser_${TIMESTAMP}.submit
+~/MoH_Phase2_Automation/analysis/create_oncoanalyser_submission.sh -g ${GROUP} -d ${ANALYSIS_DIR} -t ${TIMESTAMP}
 
 sbatch ${ANALYSIS_DIR}/${GROUP}.oncoanalyser_${TIMESTAMP}.submit
 
 echo "Oncoanalyser launched for $GROUP."
+
 # add oncoanalyser launch json and ingest into DB to set operation to RUNNING
+~/MoH_Phase2_Automation/analysis/oncoanalyser2json.sh -i TBD -o $oncoanalyser_json
+pt-cli ingest run_processing --input-json $oncoanalyser_json
