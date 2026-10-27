@@ -8,18 +8,19 @@
 
 THIS_SCRIPT=$(basename "$0")
 
+# add options to pass sample or group instead of readset?
 usage() {
-    echo "script usage: $THIS_SCRIPT -h [-s sample]"
+    echo "script usage: $THIS_SCRIPT -h [-r readset]"
     echo "Usage:"
     echo " -h                               Display this help message."
-    echo " -s <sample>                      Sample or readset (?) that has finished transferring."
+    echo " -r <readset>                      Readset that has finished transferring."
     exit 1                      
 }
 
-while getopts 'hs:' OPTION; do
+while getopts 'hr:' OPTION; do
     case "$OPTION" in
         s)
-            sample="$OPTARG"
+            readset="$OPTARG"
             ;;
         h)
             usage
@@ -33,7 +34,7 @@ done
 # TBD WHERE PHASE2 will be run? MOH dir has a lot of files from phase 1. Better to start fresh?
 MOH_DIR=/project/60007/MOH_PHASE2
 
-# call to DB to check on status of readsets linked to the same sample
+# call to DB to check on status of other readsets linked to the same sample
 
 # if all readsets for sample are valid (transferred) find other members of group(s)
 
