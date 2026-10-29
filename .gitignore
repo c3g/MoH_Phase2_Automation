@@ -1,0 +1,36 @@
+# Python
+*.py[cod]
+__pycache__/
+.pdm*
+.python*
+venv/
+.venv/
+
+# Logs
+*.log
+
+# OS / editor
+.DS_Store
+.vscode/
+
+# outputs
+jsons.tar.gz
+*.db
+
+# One-off scripts
+manually_*.sh
+
+# Nextflow run leftovers
+.nextflow*
+work/
+results/
+
+# analysis data
+*.bam
+*.bai
+*.cram
+*.crai
+*.fastq.gz
+*.fq.gz
+*.vcf.gz
+*.tbi
