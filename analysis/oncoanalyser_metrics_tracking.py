@@ -8,49 +8,68 @@ import logging
 
 import gzip
 
+from oncoanalyser2json import load_json_file
+ 
 logging.basicConfig(format='%(levelname)s: %(asctime)s - %(message)s', level=logging.INFO)
 logger = logging.getLogger(__name__)
 
+ 
+ 
+def parse_arguments():
+    """Parse command line arguments."""
+    parser = argparse.ArgumentParser(
+        prog='oncoanalyser_metrics_tracking.py',
+        description="Adds QC metrics of a finished oncoanalyser run to its project tracking json."
+        )
+    parser.add_argument(
+        '-i',
+        '--input',
+        required=True,
+        help="Folder of the analysis to be parsed."
+        )
+    parser.add_argument(
+        '-o',
+        '--output',
+        default=None,
+        help="Output json filename (Default: <group>.oncoanalyser.json)."
+        )
+    return parser.parse_args()
+ 
+ 
 def main():
-    parser = argparse.ArgumentParser(prog=os.path.basename(__file__), description="Creates the project tracking json for an oncoanalyser run.")
-
-    # instead of direct paths?
-    parser.add_argument('-r', '--results', required=True, help="Results folder of the oncoanalyser run.")
-    parser.add_argument('-s', '--samplesheet', required=False, help="Samplesheet used for the oncoanalyser run.")
-    parser.add_argument('-o', '--output', required=True, help="Output json filename.")
-    args = parser.parse_args()
-
-    jsonify_oncoanalyser(args.results, args.output)
-
-def jsonify_oncoanalyser(results_dir, output_json):
+    """ Main """
+    args = parse_arguments()
+ 
+    # the run folder is named after the group (launch script: ${MOH_DIR}/${CASE}/${GROUP})
+    group = os.path.basename(os.path.normpath(args.input))
+    samplesheet = os.path.join(args.input, f"{group}.samplesheet.csv")
+    results_dir = os.path.join(args.input, "results")
+    output = args.output or f"{group}.oncoanalyser.json"   # same name as oncoanalyser2json.py
+ 
+    jsonify_oncoanalyser_metrics(group, samplesheet, results_dir, output)
+ 
+ 
+def jsonify_oncoanalyser_metrics(group, samplesheet, results_dir, output_json):
     """
-    Create the json file for the oncoanalyser run.
+    Add QC metrics to the project tracking json of the oncoanalyser run.
     """
-    # Run info: 
-    json_output = {
-        "project_name": "MOH-Q",
-        "operation_config_name": "oncoanalyser_config",
-        "operation_config_version": "3.0.0",
-        "operation_config_md5sum": None,     # TODO once conf is decided
-        "operation_config_data": None,       # TODO
-        "operation_platform": "cardinal", 
-        "operation_cmd_line": None,        # TODO:
-        "operation_name": "oncoanalyser",
-        "sample": []            #todo
-        }
-
-    # Samples and readsets (from the samplesheet)
-    #  get_sample_dict()
-
-    #Jobs (start/stop/status)
-    # get_job_info()
-
-    #  QC metrics (values + flags)
-    #  extract_purple(), extract_bamtools(), extract_isofox()
-
+    # Open the json made at launch (oncoanalyser2json.py)
+    json_output = load_json_file(output_json)
+ 
+    # Samples of the run (step 2)
+    # samples = get_sample_dict(samplesheet)
+    # normal_dna = find_sample(samples, "normal", "dna")
+    # tumor_dna = find_sample(samples, "tumor", "dna")
+    # tumor_rna = find_sample(samples, "tumor", "rna")   # None if DNA-only
+ 
+    # QC metrics (values + flags) under each sample (step 4)
+    # extract_qsee(), extract_purple(), extract_bamtools(), extract_isofox()
+ 
     with open(output_json, 'w', encoding='utf-8') as f:
         json.dump(json_output, f, ensure_ascii=False, indent=4)
-    logger.info(f"Json written: {output_json}") #maybe remove
+    logger.info(f"Json written: {output_json}")
+ 
+ 
 
 def get_sample_dict(samplesheet):
 
@@ -126,7 +145,7 @@ def extract_purple(group, sample, results_dir):
     # metrics - for now: qc status, purity,ploidy, contamination, sex_check (flags to be added later)
     metrics = [
         {"metric_name": "purple_qc_status", "metric_value": qc["QCStatus"], "metric_flag": None, "metric_deliverable": True},
-        {"metric_name": "ploidy", "metric_value": purity_tsv["ploidy"], "metric_flag": None, "metric_deliverable": True}, 
+        {"metric_name": "ploidy", "metric_value": purity_tsv["ploidy"], "metric_flag": None, "metric_deliverable": True},
         {"metric_name": "sex_check", "metric_value": f'{qc["AmberGender"]}/{qc["CobaltGender"]}', "metric_flag": None, "metric_deliverable": True},
     ]
     return metrics
