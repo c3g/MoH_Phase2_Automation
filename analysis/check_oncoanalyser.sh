@@ -31,6 +31,8 @@ samplesheet=$run_dir/$group.samplesheet.csv
 results=$run_dir/results/$group
 log=$run_dir/.nextflow.log
 
+# CHECK LOGS
+
 if [ ! -d "$run_dir" ] || [ ! -f "$samplesheet" ]; then
   echo "ERROR: $run_dir or $samplesheet not found"
   exit 1
@@ -64,17 +66,48 @@ else
 fi
 
 #  (maybe) list tasks that were retried for future reference
+grep "Execution is retried" "$log" \
   | sed -E 's/.*Process `([^`]*)` terminated with an error exit status \(([0-9]+)\).*/  retried: \1  exit \2/'
 
-# Check The orange report exists
-if ! ls "$results"/orange/*.orange.pdf > /dev/null 2>&1; then
-  echo "INCOMPLETE: no ORANGE report"
-  exit 1
+
+# CHECK OUTPUTS
+
+# Sample ids from the samplesheet to find output directories.
+normal_dna=$(awk -F, '$4=="normal" && $5=="dna" {print $3; exit}' "$samplesheet")
+tumor_dna=$(awk -F, '$4=="tumor" && $5=="dna" {print $3; exit}' "$samplesheet")
+tumor_rna=$(awk -F, '$4=="tumor" && $5=="rna" {print $3; exit}' "$samplesheet")
+
+# main outputs that must exist (TO BE UPDATED BAES ON DELIVERABLES IF NEEDED)--------------------------------------------
+expected=(
+    # redux bams
+    "$results/alignments/$tumor_dna/$tumor_dna.redux.bam"
+    "$results/alignments/$tumor_dna/$tumor_dna.redux.bam.bai"
+    "$results/alignments/$normal_dna/$normal_dna.redux.bam"
+    "$results/alignments/$normal_dna/$normal_dna.redux.bam.bai"
+    
+    #bamtools
+    "$results/bamtools/$normal_dna/$normal_dna.bam_metric.summary.tsv"
+    "$results/bamtools/$tumor_dna/$tumor_dna.bam_metric.summary.tsv"
+
+
+    "$results/purple/$tumor_dna.purple.purity.tsv"
+    "$results/purple/$tumor_dna.purple.qc"
+    "$results/qsee/$tumor_dna.qsee.status.tsv.gz"
+    "$results/orange/$tumor_dna.orange.pdf"
+
+)
+
+# RNA (if exists)
+if [ -n "$tumor_rna" ]; then
+  expected+=("$results/alignments/$tumor_rna/$tumor_rna.md.bam")
+  expected+=("$results/isofox/$tumor_dna.isf.summary.tsv")
 fi
 
-echo "COMPLETED"
+for f in "${expected[@]}"; do
+  if [ ! -s "$f" ]; then
+    echo "INCOMPLETE: missing $f"
+    exit 1
+  fi
+done
 
-# TODO:
-#  check other outputs (Purple, QSEE, BamTools)
-#  check RNA outputs if RNA was run
-#  check BAMs are not truncated (the bug that happend with a few 2.3.0 runs)
+echo "COMPLETED"
