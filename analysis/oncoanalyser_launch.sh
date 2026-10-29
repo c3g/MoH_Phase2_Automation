@@ -2,20 +2,21 @@
 
 ### WORK IN PROGRESS ###
 
-# script will orchestrate sample sheet construction (separate python script) and oncoanalyser launch
+# Script will orchestrate sample sheet construction (separate python script)
+# and oncoanalyser submit script generation, followed by oncoanalyser launch.
+# After launch, operation is added to DB as running to prevent concurrent launches.
 # triggered via jenkins when new data has finished transferring to MoH bucket
 
 
 THIS_SCRIPT=$(basename "$0")
 
-# add options to pass sample or group instead of readset?
 usage() {
     echo "script usage: $THIS_SCRIPT -h [-r readset] [-s sample] [-g group]"
     echo "Usage:"
     echo " -h                               Display this help message."
-    echo " -r <readset>                     Readset for which to construct sample sheet. To be used instead of -s <sample> or -g <group>."
-    echo " -s <sample>                      Sample for which to construct sample sheet. To be used instead of -r <readset> or -g <group>."
-    echo " -g <group>                       Sample group for which to construct sample sheet. To be used instead of -s <sample> or -r <readset>."
+    echo " -r <readset>                     Readset for which to construct sample sheet and launch analysis. To be used instead of -s <sample> or -g <group>."
+    echo " -s <sample>                      Sample for which to construct sample sheet and launch analysis. To be used instead of -r <readset> or -g <group>."
+    echo " -g <group>                       Sample group for which to construct sample sheet and launch analysis. To be used instead of -s <sample> or -r <readset>."
     exit 1                      
 }
 
