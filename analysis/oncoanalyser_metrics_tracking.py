@@ -128,16 +128,23 @@ def extract_purple(group, sample, results_dir):
     #todo: add flags 
 
     purple_dir = os.path.join(results_dir, group, 'purple')
+    qc_file = os.path.join(purple_dir, f'{sample}.purple.qc')
+    purity_file = os.path.join(purple_dir, f'{sample}.purple.purity.tsv')
+
+    for path in (qc_file, purity_file):
+        if not os.path.exists(path):
+            logger.warning(f"missing {path}")
+            return []
 
     qc = {}
     # purple qc
-    with open(os.path.join(purple_dir, f'{sample}.purple.qc'), encoding='utf-8') as f:
+    with open(qc_file, encoding='utf-8') as f:
         for line in f:
             name, value = line.rstrip('\n').split('\t')
             qc[name] = value
 
     # purity.tsv: header line + one value line
-    with open(os.path.join(purple_dir, f'{sample}.purple.purity.tsv'), encoding='utf-8') as f:
+    with open(purity_file, encoding='utf-8') as f:
         header = f.readline().rstrip('\n').split('\t')
         values = f.readline().rstrip('\n').split('\t')
     purity_tsv = dict(zip(header, values))
