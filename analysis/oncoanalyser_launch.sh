@@ -93,4 +93,4 @@ echo "Oncoanalyser launched for $GROUP."
 
 # add oncoanalyser launch json and ingest into DB to set operation to RUNNING
 ~/MoH_Phase2_Automation/analysis/oncoanalyser2json.sh -i TBD -o $oncoanalyser_json
-pt-cli ingest run_processing --input-json $oncoanalyser_json
+pt-cli --project MOH-Q ingest analysis --input-json $oncoanalyser_json
