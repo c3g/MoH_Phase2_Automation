@@ -4,6 +4,7 @@ import argparse
 import csv
 import json
 import os
+import sys
 import logging
 
 import gzip
@@ -31,7 +32,7 @@ def parse_arguments():
         '-o',
         '--output',
         default=None,
-        help="Output json filename (Default: <group>.oncoanalyser.json)."
+        help="Json to update (Default: <run folder>/<group>.oncoanalyser.json)."
         )
     return parser.parse_args()
  
@@ -45,7 +46,8 @@ def main():
     group = os.path.basename(os.path.normpath(args.input))
     samplesheet = os.path.join(args.input, f"{group}.samplesheet.csv")
     results_dir = os.path.join(args.input, "results")
-    output = args.output or f"{group}.oncoanalyser.json"   # same name as oncoanalyser2json.py
+    ## NOT SURE
+    output = args.output or os.path.join(args.input, f"{group}.oncoanalyser.json")
  
     jsonify_oncoanalyser_metrics(group, samplesheet, results_dir, output)
  
@@ -57,20 +59,27 @@ def jsonify_oncoanalyser_metrics(group, samplesheet, results_dir, output_json):
     """
     # Open the json made at launch (oncoanalyser2json.py)
     json_output = load_json_file(output_json)
+    if json_output is None:
+        # load_json_file() already logged why (missing or broken file)
+        logger.error("No launch json to add metrics to - stopping.")
+        sys.exit(1)
 
     # Sample ids of the run - normal/tumor DNA and tumor RNA (if exists)
     normal_dna, tumor_dna, tumor_rna = get_samples(samplesheet)
+    #runs always have tumor + normal DNA (RNA is optional)
+    if not normal_dna or not tumor_dna:
+        logger.error(f"Samplesheet needs a normal and a tumor DNA sample: normal={normal_dna}, tumor={tumor_dna}. Stopping.")
+        sys.exit(1)
 
     # QSEE
     qsee = extract_qsee(group, tumor_dna, results_dir)
 
     # QC metrics of each sample
     sample_metrics = {}
-    if normal_dna:
-        sample_metrics[normal_dna] = qsee.get(normal_dna, []) + extract_bamtools(group, normal_dna, results_dir)
-        sample_metrics[tumor_dna] = (qsee.get(tumor_dna, [])
-                                +extract_bamtools(group, tumor_dna, results_dir)
-                                + extract_purple(group, tumor_dna, results_dir))
+    sample_metrics[normal_dna] = qsee.get(normal_dna, []) + extract_bamtools(group, normal_dna, results_dir)
+    sample_metrics[tumor_dna] = (qsee.get(tumor_dna, [])
+                                 + extract_bamtools(group, tumor_dna, results_dir)
+                                 + extract_purple(group, tumor_dna, results_dir))
     if tumor_rna:
         # **** ISOFOX files are named after the tumor DNA ****
         sample_metrics[tumor_rna] = extract_isofox(group, tumor_dna, results_dir)
@@ -78,6 +87,12 @@ def jsonify_oncoanalyser_metrics(group, samplesheet, results_dir, output_json):
     # Put them under each sample in the json
     for sample_id, metrics in sample_metrics.items():
         add_metrics(json_output, sample_id, metrics)
+
+    # Save the json
+    with open(output_json, 'w', encoding='utf-8') as f:
+        json.dump(json_output, f, ensure_ascii=False, indent=4)
+    logger.info(f"Json written: {output_json}")
+
 
 def get_samples(samplesheet):
     """
