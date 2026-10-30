@@ -81,9 +81,8 @@ MOH_DIR=/project/60007/MOH_PHASE2
 
 # if sample is RNA and DNA has already been run, launch with full sample sheet
 ANALYSIS_DIR=${MOH_DIR}/${CASE}/${GROUP}
-~/MoH_Phase2_Automation/analysis/create_samplesheet.sh ${NUCLEIC_ACID_TYPE} -g ${GROUP} -o ${ANALYSIS_DIR}
-
 TIMESTAMP=$(date +%FT%H.%M.%S)
+~/MoH_Phase2_Automation/analysis/create_samplesheet.sh ${NUCLEIC_ACID_TYPE} -g ${GROUP} -o ${ANALYSIS_DIR}/samplesheets/${TIMESTAMP}
 
 # create oncoanalyser submission script
 ~/MoH_Phase2_Automation/analysis/create_oncoanalyser_submission.sh -g ${GROUP} -d ${ANALYSIS_DIR} -t ${TIMESTAMP}

@@ -43,7 +43,7 @@ if [[ ! "$TIMESTAMP" ]]; then
     TIMESTAMP=$(date +%FT%H.%M.%S)
 fi
 
-SAMPLESHEET=${ANALYSIS_DIR}/${GROUP}.samplesheet.csv
+SAMPLESHEET=${ANALYSIS_DIR}/samplesheets/${TIMESTAMP}/${GROUP}.samplesheet.csv
 if [ ! -f "$SAMPLESHEET" ]; then
     echo "Samplesheet is missing. Please run create_samplesheet.sh and try again."
     exit 1
@@ -54,7 +54,7 @@ echo """#!/bin/bash
 #SBATCH --time=72:00:00
 #SBATCH --cpus-per-task=4
 #SBATCH --mem=32G
-#SBATCH -o ${GROUP}.oncoanalyser_${TIMESTAMP}.out
+#SBATCH -o ${ANALYSIS_DIR}/${GROUP}.oncoanalyser_${TIMESTAMP}.out
 
 umask 007
 module use /cvmfs/soft.mugqic/CentOS6/modulefiles
@@ -71,7 +71,7 @@ cd $ANALYSIS_DIR && \\
 nextflow run $ONCOANALYSER_HOME -profile singularity \\
   -c \${ONCOANALYSER_CONFIGS}/onco.config,\$ONCO_SITE_DIR/cardinal_site.config \\
   --mode wgts --genome GRCh38_hmf \\
-  --input ${GROUP}.samplesheet.csv --outdir results \\
+  --input ${SAMPLESHEET} --outdir results \\
   -resume
 """ > ${ANALYSIS_DIR}/${GROUP}.oncoanalyser_${TIMESTAMP}.submit
 
