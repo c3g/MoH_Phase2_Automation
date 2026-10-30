@@ -5,6 +5,7 @@ import csv
 import json
 import os
 import sys
+import glob
 import logging
 
 import gzip
@@ -46,7 +47,7 @@ def main():
     group = os.path.basename(os.path.normpath(args.input))
     samplesheet = os.path.join(args.input, f"{group}.samplesheet.csv")
     results_dir = os.path.join(args.input, "results")
-    ## NOT SURE
+    # the json lives in the run folder, so every step (launch, after the run) finds the same file
     output = args.output or os.path.join(args.input, f"{group}.oncoanalyser.json")
  
     jsonify_oncoanalyser_metrics(group, samplesheet, results_dir, output)
@@ -124,9 +125,21 @@ def add_metrics(json_output, sample_id, metrics):
     logger.warning(f"{sample_id} not found in the json, metrics not added")
 
 
-def get_job_info(results_dir):
+def get_job_info(results_dir): # ------------------------IN PROGRESS - for now turnaround time for each job 
+    """
+    Status of every task of the run, from Nextflow's newest trace file
+    """
+    traces = sorted(glob.glob(os.path.join(results_dir, 'pipeline_info', 'execution_trace_*.txt')))
+    if not traces:
+        logger.warning(f"no trace file in {results_dir}/pipeline_info")
+        return {}
 
-    pass
+    jobs = {}
+    with open(traces[-1], encoding='utf-8') as f:   
+        for row in csv.DictReader(f, delimiter='\t'):
+            job_name = row["name"].split(':')[-1]
+            jobs[job_name] = row["status"]             # a retried task: the later row wins
+    return jobs
 
 
 # currently 
@@ -195,14 +208,28 @@ def extract_purple(group, sample, results_dir):
         values = f.readline().rstrip('\n').split('\t')
     purity_tsv = dict(zip(header, values))
 
-    # metrics - for now: qc status, purity,ploidy, contamination, sex_check (flags to be added later)
+    # metrics - for now: qc status (with flag), ploidy, sex_check (purity, contamination etc. come from QSEE)
     metrics = [
-        {"metric_name": "purple_qc_status", "metric_value": qc["QCStatus"], "metric_flag": None, "metric_deliverable": True},
+        {"metric_name": "purple_qc_status", "metric_value": qc["QCStatus"], "metric_flag": purple_flag(qc["QCStatus"]), "metric_deliverable": True},
         {"metric_name": "ploidy", "metric_value": purity_tsv["ploidy"], "metric_flag": None, "metric_deliverable": True},
         {"metric_name": "sex_check", "metric_value": f'{qc["AmberGender"]}/{qc["CobaltGender"]}', "metric_flag": None, "metric_deliverable": True},
     ]
     return metrics
 
+
+def purple_flag(qc_status): #------------------------IN PROGRESS
+    """
+    Flag from purples own QCStatus. Several problems are joined with commas,
+    """
+    parts = qc_status.split(',')
+    if any(part.startswith('FAIL') for part in parts):
+        return "FAILED"
+    if any(part.startswith('WARN') for part in parts):
+        return "WARNING"
+    if qc_status == "PASS":
+        return "PASS"
+    logger.warning(f"unknown PURPLE QCStatus: {qc_status}")
+    return None
 
 
 def extract_bamtools(group, sample, results_dir):
