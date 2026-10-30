@@ -41,6 +41,7 @@ def main():
     args = parse_arguments()
  
     # the run folder is named after the group (launch script: ${MOH_DIR}/${CASE}/${GROUP})
+    # one group = one tumor+ normal
     group = os.path.basename(os.path.normpath(args.input))
     samplesheet = os.path.join(args.input, f"{group}.samplesheet.csv")
     results_dir = os.path.join(args.input, "results")
@@ -71,9 +72,37 @@ def jsonify_oncoanalyser_metrics(group, samplesheet, results_dir, output_json):
  
  
 
-def get_sample_dict(samplesheet):
 
-    pass
+def get_samples(samplesheet):
+    """
+    Normal DNA, tumor DNA and tumor RNA sample_ids of the run, is useful to find out output filenames.
+    """
+    normal_dna = tumor_dna = tumor_rna = None
+    with open(samplesheet, encoding='utf-8') as f:
+        for row in csv.DictReader(f):
+            if row["sample_type"] == "normal" and row["sequence_type"] == "dna":
+                normal_dna = row["sample_id"]
+            elif row["sample_type"] == "tumor" and row["sequence_type"] == "dna":
+                tumor_dna = row["sample_id"]
+            elif row["sample_type"] == "tumor" and row["sequence_type"] == "rna":
+                tumor_rna = row["sample_id"]
+    return normal_dna, tumor_dna, tumor_rna
+
+
+def add_metrics(json_output, sample_id, metrics):
+    """
+    Put the metrics under the sample in the json.
+     metrics are REPLACED when the script re-runs on the same json
+    """
+    # TODO: confirm which field of the oncoanalyser2json.py json holds the samplesheet sample_id
+    #       (phase 1: sample_name = CaseType, full name in sample_alias). Both are checked for now.
+    for sample in json_output["sample"]:
+        if sample.get("sample_name") == sample_id or sample_id in sample.get("sample_alias", []):
+            sample["metric"] = metrics
+            return
+
+    logger.warning(f"{sample_id} not found in the json, metrics not added")
+
 
 def get_job_info(results_dir):
 
@@ -82,10 +111,7 @@ def get_job_info(results_dir):
 
 # currently 
 # group:  group_id from the samplesheet (e.g. MoHQ-CQ-36-94).
-#   onco writes all results of a run to results/<group>/.
-# sample: sample_id from the samplesheet: one normal DNA, tumor DNA or tumor RNA sample
-#  (e.g. MoHQ-CQ-36-94-TEP087-1FDT). onco names its output files after it.
-
+#   onco writes all results of a run to results/<group>/. One group = one casetype/tumor (+ its normal, + RNA if any).
 # IMPORTANT: some RNA results are named after the tumor DNA
 
 def extract_qsee(group, tumour_sample, results_dir):
