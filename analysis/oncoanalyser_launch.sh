@@ -91,6 +91,8 @@ sbatch ${ANALYSIS_DIR}/${GROUP}.oncoanalyser_${TIMESTAMP}.submit
 
 echo "Oncoanalyser launched for $GROUP."
 
+ONCOANALYSER_JSON=${ANALYSIS_DIR}/${GROUP}.oncoanalyser.json
+
 # add oncoanalyser launch json and ingest into DB to set operation to RUNNING
-~/MoH_Phase2_Automation/analysis/oncoanalyser2json.sh -i TBD -o $oncoanalyser_json
-pt-cli --project MOH-Q ingest analysis --input-json $oncoanalyser_json
+~/MoH_Phase2_Automation/analysis/oncoanalyser2json.sh -i ${ANALYSIS_DIR} -t ${TIMESTAMP} -o ${ONCOANALYSER_JSON}
+pt-cli --project MOH-Q ingest analysis --input-json ${ONCOANALYSER_JSON}

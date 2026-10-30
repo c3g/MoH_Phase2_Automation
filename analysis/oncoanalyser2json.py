@@ -7,6 +7,7 @@ import glob
 import json
 import os
 import logging
+import configparser
 
 logging.basicConfig(format='%(levelname)s: %(asctime)s - %(message)s', level=logging.INFO)
 logger = logging.getLogger(__name__)
@@ -173,12 +174,12 @@ def init(
         'project_name': "MOH-Q",
         'operation_config_name': 'oncoanalyser_ini',
         'operation_config_version': operation_config_version, # parse from somewhere
-        'operation_config_md5sum': operation_config_md5sum, # how to calculate without trace ini?
+        'operation_config_md5sum': operation_config_md5sum, # calculate from merged configs
         'operation_config_data': ''.join(operation_config_data), # parse from somewhere
         'operation_platform': 'cardinal', # better if parsed from somewhere
-        'operation_cmd_line': operation_cmd_line, # easiest to parse from nextflow log, but not available until job is launched
+        'operation_cmd_line': operation_cmd_line, # parse from submission script
         'operation_name': "oncoanalyser",
-        'operation_pipeline': operation_pipeline, # from params json "mode"
+        'operation_pipeline': operation_pipeline, # parse from submission script
         'sample': []
     }
 
@@ -215,6 +216,10 @@ def main():
 
     submit_script = os.path.join(args.input, f"{os.path.basename(args.input)}.oncoanalyser.{args.timestamp}.submit"))
     full_command = parse_submit_script(submit_script)
+
+    # parse used config files from the submission script and convert them to json format (nextflow -c /cvmfs/soft.mugqic/CentOS6/software/oncoanalyser/oncoanalyser-3.0.0/config/onco.config config -o json > onco_config.json)
+    # merge the json files and write a single config trace file (python deep merge)
+    # calculate md5sum of merged config file and add to json
 
     init_json()
 
