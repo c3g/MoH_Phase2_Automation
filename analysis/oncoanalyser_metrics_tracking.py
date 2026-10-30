@@ -53,25 +53,31 @@ def main():
 def jsonify_oncoanalyser_metrics(group, samplesheet, results_dir, output_json):
     """
     Add QC metrics to the project tracking json of the oncoanalyser run.
+    1 set of metrics per sample_id (normal DNA, tumor DNA, tumor RNA if exists).
     """
     # Open the json made at launch (oncoanalyser2json.py)
     json_output = load_json_file(output_json)
- 
-    # Samples of the run (step 2)
-    # samples = get_sample_dict(samplesheet)
-    # normal_dna = find_sample(samples, "normal", "dna")
-    # tumor_dna = find_sample(samples, "tumor", "dna")
-    # tumor_rna = find_sample(samples, "tumor", "rna")   # None if DNA-only
- 
-    # QC metrics (values + flags) under each sample (step 4)
-    # extract_qsee(), extract_purple(), extract_bamtools(), extract_isofox()
- 
-    with open(output_json, 'w', encoding='utf-8') as f:
-        json.dump(json_output, f, ensure_ascii=False, indent=4)
-    logger.info(f"Json written: {output_json}")
- 
- 
 
+    # Sample ids of the run - normal/tumor DNA and tumor RNA (if exists)
+    normal_dna, tumor_dna, tumor_rna = get_samples(samplesheet)
+
+    # QSEE
+    qsee = extract_qsee(group, tumor_dna, results_dir)
+
+    # QC metrics of each sample
+    sample_metrics = {}
+    if normal_dna:
+        sample_metrics[normal_dna] = qsee.get(normal_dna, []) + extract_bamtools(group, normal_dna, results_dir)
+        sample_metrics[tumor_dna] = (qsee.get(tumor_dna, [])
+                                +extract_bamtools(group, tumor_dna, results_dir)
+                                + extract_purple(group, tumor_dna, results_dir))
+    if tumor_rna:
+        # **** ISOFOX files are named after the tumor DNA ****
+        sample_metrics[tumor_rna] = extract_isofox(group, tumor_dna, results_dir)
+
+    # Put them under each sample in the json
+    for sample_id, metrics in sample_metrics.items():
+        add_metrics(json_output, sample_id, metrics)
 
 def get_samples(samplesheet):
     """
@@ -94,8 +100,7 @@ def add_metrics(json_output, sample_id, metrics):
     Put the metrics under the sample in the json.
      metrics are REPLACED when the script re-runs on the same json
     """
-    # TODO: confirm which field of the oncoanalyser2json.py json holds the samplesheet sample_id
-    #       (phase 1: sample_name = CaseType, full name in sample_alias). Both are checked for now.
+    # TODO: which field of the oncoanalyser2json.py json holds the samplesheet sample_id
     for sample in json_output["sample"]:
         if sample.get("sample_name") == sample_id or sample_id in sample.get("sample_alias", []):
             sample["metric"] = metrics
