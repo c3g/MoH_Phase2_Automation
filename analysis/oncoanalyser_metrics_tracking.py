@@ -23,8 +23,7 @@ def parse_arguments():
     """Parse command line arguments."""
     parser = argparse.ArgumentParser(
         prog='oncoanalyser_metrics_tracking.py',
-        description="Adds QC metrics of a finished oncoanalyser run to its project tracking json."
-        )
+        description="Adds jobs and QC metrics of an oncoanalyser run (at any stage) to its project tracking json."        )
     parser.add_argument(
         '-i',
         '--input',
@@ -143,7 +142,7 @@ def make_job(tool, sample_id, metrics):
         "job_name": f"{tool}.{sample_id}",   # per sample-id, so normal/tumor metrics don't overwrite each other
         "job_start": None,                   # TODO:--------------------------------------------------------------------------------- from the trace
         "job_stop": None,
-        "job_status": "COMPLETED",           # script only runs on  runs that are compelted
+        "job_status": "COMPLETED",           # # a tool job only exists once its outputs exist (the script can still be run when the head job is running though)
         "metric": metrics,
     }
 
@@ -161,8 +160,11 @@ def main():
 
 def jsonify_oncoanalyser_metrics(run_dir, group, samplesheet, results_dir, output_json, sample_filter=None, readset_filter=None):
     """
-    Add QC metrics to the project tracking json of the oncoanalyser run:
-    one job per tool per sample, under every readset of that sample.
+    Update the project tracking json of the oncoanalyser run (at launch, mid-run or after it ends):
+    - every sample + readset of the samplesheet
+    - the head job oncoanalyser.<group> (status + times from .nextflow/history)
+    - one job per QC tool per sample, only for tools that already have outputs (for now)
+    - operation_status = head job status
     """
     # Open the json made at launch (oncoanalyser2json.py)
     json_output = load_json_file(output_json)
@@ -281,23 +283,6 @@ def add_jobs(json_output, sample_id, readsets, jobs):
                 existing[job["job_name"]].update(job)   # write into the existing job (incl. the head job)
             else:
                 readset["job"].append(job)
-
-
-def get_job_info(results_dir): # -------------------------------------------------------------------IN PROGRESS - for now turnaround time for each job 
-    """
-    Status of every task of the run, from Nextflow's newest trace file
-    """
-    traces = sorted(glob.glob(os.path.join(results_dir, 'pipeline_info', 'execution_trace_*.txt')))
-    if not traces:
-        logger.warning(f"no trace file in {results_dir}/pipeline_info")
-        return {}
-
-    jobs = {}
-    with open(traces[-1], encoding='utf-8') as f:   
-        for row in csv.DictReader(f, delimiter='\t'):
-            job_name = row["name"].split(':')[-1]
-            jobs[job_name] = row["status"]             # a retried task: the later row wins
-    return jobs
 
 
 # currently 
