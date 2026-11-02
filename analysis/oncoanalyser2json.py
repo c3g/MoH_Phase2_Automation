@@ -31,6 +31,12 @@ def parse_arguments():
         help="Timestamp of launch to be parsed."
             )
     parser.add_argument(
+        '-g',
+        '--group',
+        required=True,
+        help="Group for which to parse analysis."
+            )
+    parser.add_argument(
         '-o',
         '--output',
         default=None,
@@ -93,17 +99,21 @@ def create(pipeline, sample):
     else:
         sample_json = current_json_hash['sample'][sample_hash_position[0]]
 
-    for readset in sample.readsets:
-        readset_hash_position = [pos for pos, val in enumerate(sample_json['readset']) if val['readset_name'] == readset.name]
+    for readset in readsets:
+        readset_hash_position = [pos for pos, val in enumerate(sample_json['readset']) if val['readset_name'] == readset]
         if not readset_hash_position:
             readset_json = {
-                'readset_name': readset.name,
+                'readset_name': readset,
                 'job': []
                 }
             sample_json['readset'].append(readset_json)
         else:
             readset_json = sample_json['readset'][readset_hash_position[0]]
-        for step in pipeline.step_to_execute:
+        
+        # append jobs only if oncoanalyser has already run
+        # if oncoanalyser hasn't launched yet, only append orchestrator job (minimum requirement for ingesting analysis json)
+
+        if oncoanalyser_done: #TBD mechanism
             for job in step.jobs:
                 if readset in job.readsets:
                     job_hash_position = [pos for pos, val in enumerate(readset_json['job']) if val['job_name'] == job.name]
@@ -149,6 +159,14 @@ def create(pipeline, sample):
                                 job_json['file'].append(file_json)
                         else:
                             file_json = job_json['file'][file_hash_position[0]]
+        else:
+            job_json = {
+                'job_name': f"oncoanalyser.{args.group}",
+                'job_start': None,
+                'job_stop': None,
+                'job_status': None,
+                    }
+            readset_json['job'].append(job_json)
 
     with open(json_file, 'w', encoding='utf-8') as j_file:
         json.dump(current_json_hash, j_file, ensure_ascii=False, indent=4)
@@ -201,21 +219,11 @@ def main():
 
     output = args.output or f"{os.path.basename(args.input)}.oncoanalyser.json"
 
-    # params json won't be available until after launch. Reconsider.
-    #json_candidates = glob.glob(os.path.join(args.input, "results", "pipeline_info", "*.json"))
-    #json_main = max(json_candidates, key=os.path.getmtime)
-    #if not json_main:
-    #    raise FileNotFoundError(f"No main params .json file found in folder {args.input}/results/pipeline_info.")
-    #params_json = load_json_file(json_main)
+    samplesheet = os.path.join(args.input, "samplesheets", args.timestamp, f"{os.path.basename(input)}.samplesheet.csv"))
+    samples = parse_samplesheet(samplesheet)
 
-    samplesheet_candidates = glob.glob(os.path.join(args.input, f"{os.path.basename(input)}.samplesheet.csv"))
-    samplesheet_main = max(samplesheet_candidates, key=os.path.getmtime)
-    if not samplesheet_main:
-        raise FileNotFoundError(f"No main samplesheet found in folder {args.input}")
-    samples = parse_samplesheet(samplesheet_main)
-
-    submit_script = os.path.join(args.input, f"{os.path.basename(args.input)}.oncoanalyser.{args.timestamp}.submit"))
-    full_command = parse_submit_script(submit_script)
+    submit_script = os.path.join(args.input, f"{args.group}.oncoanalyser.{args.timestamp}.submit"))
+    full_command, config_files = parse_submit_script(submit_script)
 
     # parse used config files from the submission script and convert them to json format (nextflow -c /cvmfs/soft.mugqic/CentOS6/software/oncoanalyser/oncoanalyser-3.0.0/config/onco.config config -o json > onco_config.json)
     # merge the json files and write a single config trace file (python deep merge)

@@ -49,6 +49,10 @@ if [ ! -f "$SAMPLESHEET" ]; then
     exit 1
 fi
 
+ONCOANALYSER_HOME=/cvmfs/soft.mugqic/CentOS6/software/oncoanalyser/oncoanalyser-3.0.0/pipeline/
+ONCOANALYSER_CONFIGS=/cvmfs/soft.mugqic/CentOS6/software/oncoanalyser/oncoanalyser-3.0.0/config
+ONCO_SITE_DIR=${MOH_DIR}/oncoanalyser_prod/config
+
 echo """#!/bin/bash
 #SBATCH --job-name=oncoanalyser_${GROUP}
 #SBATCH --time=72:00:00
@@ -61,7 +65,7 @@ module use /cvmfs/soft.mugqic/CentOS6/modulefiles
 module purge && module load mugqic/oncoanalyser/3.0.0
 
 export NXF_HOME=${MOH_DIR}/oncoanalyser_prod/nxf_home
-export ONCO_SITE_DIR=${MOH_DIR}/oncoanalyser_prod/config
+export ONCO_SITE_DIR=$ONCO_SITE_DIR
 
 export NXF_OPTS="\$NXF_OPTS -Xms4g -Xmx12g"
 export APPTAINER_TMPDIR=$ANALYSIS_DIR/tmp
@@ -69,7 +73,7 @@ mkdir -p \$APPTAINER_TMPDIR
 
 cd $ANALYSIS_DIR && \\
 nextflow run $ONCOANALYSER_HOME -profile singularity \\
-  -c \${ONCOANALYSER_CONFIGS}/onco.config,\$ONCO_SITE_DIR/cardinal_site.config \\
+  -c ${ONCOANALYSER_CONFIGS}/onco.config,${ONCO_SITE_DIR}/cardinal_site.config \\
   --mode wgts --genome GRCh38_hmf \\
   --input ${SAMPLESHEET} --outdir results \\
   -resume
