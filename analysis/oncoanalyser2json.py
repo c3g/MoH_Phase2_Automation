@@ -59,40 +59,38 @@ def parse_samplesheet(samplesheet):
     """
     Parse samplesheet for oncoanalyser run for samples and readsets.
     """
-    "TBD"
+    samples = {}
+
+    with open(samplesheet, encoding='utf-8') as f:
+        for row in csv.DictReader(f):
+            sample = row["sample_id"]
+            info = dict(part.split(":", 1) for part in row["info"].split(";") if ":" in part)
+            readset = info.get("library_id") 
+
+            if sample not in samples.keys():
+                samples[sample] = [readset]
+            else:
+                samples[sample].append(readset)
 
     return samples
 
 ### TO MODIFY FOR ONCOANALYSER ###
-def create(pipeline, sample):
+def create(json_file, sample):
     """
     Starts creating the json dump for the passed sample
     """
-
-    json_folder = os.path.join(pipeline.output_dir, "json")
-    try:
-        json_file = os.path.join(json_folder, f"{pipeline.__class__.__name__}.{pipeline.protocol}_{pipeline.timestamp}.json")
-    except AttributeError:
-        json_file = os.path.join(json_folder, f"{pipeline.__class__.__name__}_{pipeline.timestamp}.json")
-
-    if not os.path.isabs(pipeline.output_dir):
-        pipeline_output_dir = os.path.abspath(pipeline.output_dir)
-    else:
-        pipeline_output_dir = pipeline.output_dir
-    # /!\ Can't os.path.join otherwise the 'server://' disappears
-    cluster_server = global_conf.global_get("DEFAULT", 'cluster_server', required=True)
-    path_prefix = f"{cluster_server}://{pipeline_output_dir}"
-
+    # Run only if json doesn't already exist and oncoanaluser hasn't started running yet? 
+    # If oncoanalyser already running/finished, call oncoanalyser_metrics_tracking.py instead
     log.debug(f"Updating project_tracking JSON {json_file} for sample '{sample.name}'")
 
     with open(json_file, 'r') as j_file:
         current_json_hash = json.load(j_file)
 
     # Existing sample in json
-    sample_hash_position = [pos for pos, val in enumerate(current_json_hash['sample']) if val['sample_name'] == sample.name]
+    sample_hash_position = [pos for pos, val in enumerate(current_json_hash['sample']) if val['sample_name'] == sample]
     if not sample_hash_position:
         sample_json = {
-            'sample_name': sample.name,
+            'sample_name': sample,
             'readset': []
             }
         current_json_hash['sample'].append(sample_json)
@@ -109,56 +107,10 @@ def create(pipeline, sample):
             sample_json['readset'].append(readset_json)
         else:
             readset_json = sample_json['readset'][readset_hash_position[0]]
-        
-        # append jobs only if oncoanalyser has already run
-        # if oncoanalyser hasn't launched yet, only append orchestrator job (minimum requirement for ingesting analysis json)
-
-        if oncoanalyser_done: #TBD mechanism
-            for job in step.jobs:
-                if readset in job.readsets:
-                    job_hash_position = [pos for pos, val in enumerate(readset_json['job']) if val['job_name'] == job.name]
-                    if not job_hash_position:
-                        job_json = {
-                            'job_name': job.name,
-                            'job_start': None,
-                            'job_stop': None,
-                            'job_status': None,
-                            'file': []
-                            }
-                        readset_json['job'].append(job_json)
-                    else:
-                        job_json = readset_json['job'][job_hash_position[0]]
-                    for output_file in job.output_files:
-                        file_hash_position = [pos for pos, val in enumerate(job_json['file']) if val['file_name'] == os.path.basename(output_file)]
-                        if not file_hash_position:
-                            # /!\ Can't os.path.join for location_uri otherwise the 'server://' disappears
-                            _, extension = os.path.splitext(os.path.basename(output_file))
-                            if extension:
-
-                                if "://" in output_file:
-                                    location_uri = output_file
-
-                                else:
-                                    output_file_norm = os.path.normpath(output_file)
-                                    pipeline_output_norm = os.path.normpath(pipeline_output_dir)
-
-                                    if os.path.isabs(output_file_norm):
-                                        if output_file_norm.startswith(pipeline_output_norm + os.sep):
-                                            relative = os.path.relpath(output_file_norm, pipeline_output_norm)
-                                            location_uri = f"{cluster_server}://{pipeline_output_norm}/{relative}"
-                                        else:
-                                            location_uri = f"{cluster_server}://{output_file_norm}"
-                                    else:
-                                        location_uri = f"{path_prefix.rstrip('/')}/{output_file_norm.lstrip('/')}"
-
-                                file_json = {
-                                    'location_uri': location_uri,
-                                    'file_name': os.path.basename(output_file),
-                                    'file_md5sum': None
-                                    }
-                                job_json['file'].append(file_json)
-                        else:
-                            file_json = job_json['file'][file_hash_position[0]]
+       
+       # add something here that calls oncoanalyser_metrics_tracking.py if oncoanalyser is already running or has finished
+        if oncoanalyser_done:
+            call oncoanalyser_metrics_tracking.py instead
         else:
             job_json = {
                 'job_name': f"oncoanalyser.{args.group}",
@@ -172,7 +124,6 @@ def create(pipeline, sample):
         json.dump(current_json_hash, j_file, ensure_ascii=False, indent=4)
 
     return json_file
-
 
 def init(
     operation_name,
@@ -201,11 +152,6 @@ def init(
         'sample': []
     }
 
-    json_folder = os.path.join(pipeline_output_dir, "json")
-
-    if not os.path.exists(json_folder):
-        os.makedirs(json_folder)
-
     json_file = os.path.join(json_folder, f"{operation_name}_{timestamp}.json")
     log.debug(f"Initializing project_tracking JSON: {json_file}")
     with open(json_file, 'w', encoding='utf-8') as j_file:
@@ -219,15 +165,20 @@ def main():
 
     output = args.output or f"{os.path.basename(args.input)}.oncoanalyser.json"
 
-    samplesheet = os.path.join(args.input, "samplesheets", args.timestamp, f"{os.path.basename(input)}.samplesheet.csv"))
-    samples = parse_samplesheet(samplesheet)
-
+    # only parse submit script and config files if output json doesn't already exist
     submit_script = os.path.join(args.input, f"{args.group}.oncoanalyser.{args.timestamp}.submit"))
     full_command, config_files = parse_submit_script(submit_script)
 
     # parse used config files from the submission script and convert them to json format (nextflow -c /cvmfs/soft.mugqic/CentOS6/software/oncoanalyser/oncoanalyser-3.0.0/config/onco.config config -o json > onco_config.json)
     # merge the json files and write a single config trace file (python deep merge)
     # calculate md5sum of merged config file and add to json
-
     init_json()
+    # if output json already exists, skip parsing of submit scriot, go to here:
+    samplesheet = os.path.join(args.input, "samplesheets", args.timestamp, f"{os.path.basename(input)}.samplesheet.csv"))
+    samples = parse_samplesheet(samplesheet)
+
+    #pseudocode for now
+    for sample in samples:
+        readsets = sample.values()
+        create(output, sample, readsets)
 
