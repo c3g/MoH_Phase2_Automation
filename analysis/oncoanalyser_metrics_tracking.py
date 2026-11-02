@@ -7,10 +7,8 @@ import os
 import sys
 import glob
 import logging
-
 import gzip
-
-from oncoanalyser2json import load_json_file
+from datetime import datetime
  
 logging.basicConfig(format='%(levelname)s: %(asctime)s - %(message)s', level=logging.INFO)
 logger = logging.getLogger(__name__)
@@ -36,8 +34,86 @@ def parse_arguments():
         help="Json to update (Default: <run folder>/<group>.oncoanalyser.json)."
         )
     return parser.parse_args()
- 
- 
+
+
+def load_json_file(path):
+    """Load a json file. Return None if missing"""
+    try:
+        with open(path, encoding='utf-8') as f:
+            return json.load(f)
+    except (FileNotFoundError, json.JSONDecodeError) as e:
+        logger.error(f"Can't read {path}: {e}")
+        return None
+
+
+def save_json_file(path, data):
+    """Write the json."""
+    with open(path, 'w', encoding='utf-8') as f:
+        json.dump(data, f, ensure_ascii=False, indent=4)
+    logger.info(f"Json written: {path}")
+
+def find_samplesheet(run_dir, group):
+    """
+    Newest samplesheet of the run: <run>/samplesheets/<timestamp>/<group>.samplesheet.csv
+    """
+    found = sorted(glob.glob(os.path.join(run_dir, 'samplesheets', '*', f'{group}.samplesheet.csv')))
+    if found:
+        return found[-1]
+
+    for name in (f'{group}.samplesheet.csv', 'samplesheet.csv'):
+        path = os.path.join(run_dir, name)
+        if os.path.exists(path):
+            logger.warning(f"using old samplesheet location: {path}")
+            return path
+
+    logger.error(f"no samplesheet found in {run_dir}")
+    sys.exit(1)
+
+
+
+
+def read_samplesheet(samplesheet):
+    """
+    Sample id + readsets (library_id in the info column) of each sample.
+    Return: {"normal_dna": {"sample_id", "readsets"}, "tumor_dna": {...}, "tumor_rna": {...} or None}
+    """
+    roles = { # all accepted combinations for sample_id
+    ("normal", "dna"): "normal_dna",
+    ("tumor", "dna"): "tumor_dna",
+    ("tumor", "rna"): "tumor_rna",
+    }
+    samples = {"normal_dna": None, "tumor_dna": None, "tumor_rna": None}
+
+    with open(samplesheet, encoding='utf-8') as f:
+        for row in csv.DictReader(f):
+            role = roles.get((row["sample_type"], row["sequence_type"]))
+            if role is None:
+                continue
+
+            info = dict(part.split(":", 1) for part in row["info"].split(";") if ":" in part)
+            readset = info.get("library_id")
+            if not readset:
+                logger.error(f"no library_id for {row['sample_id']}: {row['info']}")
+                sys.exit(1)
+
+            #collect all readsets for each sample_id
+            if samples[role] is None:
+                samples[role] = {"sample_id": row["sample_id"], "readsets": []}
+            elif samples[role]["sample_id"] != row["sample_id"]:
+                logger.error(f"two {role} samples: {samples[role]['sample_id']}, {row['sample_id']}")
+                sys.exit(1)
+
+            if readset not in samples[role]["readsets"]:
+                samples[role]["readsets"].append(readset)
+
+    if not samples["normal_dna"] or not samples["tumor_dna"]:
+        logger.error(f"need a normal and a tumor DNA sample: {samplesheet}")
+        sys.exit(1)
+
+    return samples
+
+
+
 def main():
     """ Main """
     args = parse_arguments()
@@ -45,10 +121,10 @@ def main():
     # the run folder is named after the group (launch script: ${MOH_DIR}/${CASE}/${GROUP})
     # one group = one tumor+ normal
     group = os.path.basename(os.path.normpath(args.input))
-    samplesheet = os.path.join(args.input, f"{group}.samplesheet.csv")
+    samplesheet = find_samplesheet(args.input, group)
     results_dir = os.path.join(args.input, "results")
     # the json lives in the run folder, so every step (launch, after the run) finds the same file
-    output = args.output or os.path.join(args.input, f"{group}.oncoanalyser.json")
+    output = args.output or os.path.join(args.input, f"{group}.oncoanalyser.json") # -------------------------------make sure
  
     jsonify_oncoanalyser_metrics(group, samplesheet, results_dir, output)
  
@@ -65,12 +141,12 @@ def jsonify_oncoanalyser_metrics(group, samplesheet, results_dir, output_json):
         logger.error("No launch json to add metrics to - stopping.")
         sys.exit(1)
 
-    # Sample ids of the run - normal/tumor DNA and tumor RNA (if exists)
-    normal_dna, tumor_dna, tumor_rna = get_samples(samplesheet)
-    #runs always have tumor + normal DNA (RNA is optional)
-    if not normal_dna or not tumor_dna:
-        logger.error(f"Samplesheet needs a normal and a tumor DNA sample: normal={normal_dna}, tumor={tumor_dna}. Stopping.")
-        sys.exit(1)
+    
+    # Samples of the run + their readsets (normal/tumor DNA, tumor RNA if exists)
+    samples = read_samplesheet(samplesheet)
+    normal_dna = samples["normal_dna"]["sample_id"]
+    tumor_dna = samples["tumor_dna"]["sample_id"]
+    tumor_rna = samples["tumor_rna"]["sample_id"] if samples["tumor_rna"] else None
 
     # QSEE
     qsee = extract_qsee(group, tumor_dna, results_dir)
@@ -90,25 +166,9 @@ def jsonify_oncoanalyser_metrics(group, samplesheet, results_dir, output_json):
         add_metrics(json_output, sample_id, metrics)
 
     # Save the json
-    with open(output_json, 'w', encoding='utf-8') as f:
-        json.dump(json_output, f, ensure_ascii=False, indent=4)
-    logger.info(f"Json written: {output_json}")
+    save_json_file(output_json, json_output)
 
 
-def get_samples(samplesheet):
-    """
-    Normal DNA, tumor DNA and tumor RNA sample_ids of the run, is useful to find out output filenames.
-    """
-    normal_dna = tumor_dna = tumor_rna = None
-    with open(samplesheet, encoding='utf-8') as f:
-        for row in csv.DictReader(f):
-            if row["sample_type"] == "normal" and row["sequence_type"] == "dna":
-                normal_dna = row["sample_id"]
-            elif row["sample_type"] == "tumor" and row["sequence_type"] == "dna":
-                tumor_dna = row["sample_id"]
-            elif row["sample_type"] == "tumor" and row["sequence_type"] == "rna":
-                tumor_rna = row["sample_id"]
-    return normal_dna, tumor_dna, tumor_rna
 
 
 def add_metrics(json_output, sample_id, metrics):
