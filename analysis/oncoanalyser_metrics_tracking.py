@@ -9,13 +9,13 @@ import glob
 import logging
 import gzip
 from datetime import datetime
- 
+
 logging.basicConfig(format='%(levelname)s: %(asctime)s - %(message)s', level=logging.INFO)
 logger = logging.getLogger(__name__)
 
 ALLOWED_FLAGS = {"PASS", "WARNING", "FAILED", "MISSING", "NOT_APPLICABLE"} # for metrics
 UNFLAGGED_DELIVERABLE_FLAG = "NOT_APPLICABLE"   # to confirm
- 
+
 def parse_arguments():
     """Parse command line arguments."""
     parser = argparse.ArgumentParser(
@@ -29,10 +29,24 @@ def parse_arguments():
         help="Folder of the analysis to be parsed."
         )
     parser.add_argument(
-        '-o',
-        '--output',
+        '-j',
+        '--json',
+        required=True,
+        help="Json to update in place (made by oncoanalyser2json.py)."
+        )
+    parser.add_argument( #optional
+        '-s',
+        '--sample',
+        nargs='+',
         default=None,
-        help="Json to update (Default: <run folder>/<group>.oncoanalyser.json)."
+        help="Only update these sample(s) (sample_id). Default: all samples of the samplesheet."
+        )
+    parser.add_argument( #optional
+        '-r',
+        '--readset',
+        nargs='+',
+        default=None,
+        help="Only update these readset(s). Default: all readsets of each sample."
         )
     return parser.parse_args()
 
@@ -139,13 +153,10 @@ def main():
     group = os.path.basename(os.path.normpath(args.input))
     samplesheet = find_samplesheet(args.input, group)
     results_dir = os.path.join(args.input, "results")
-    # the json lives in the run folder, so every step (launch, after the run) finds the same file
-    output = args.output or os.path.join(args.input, f"{group}.oncoanalyser.json") # -------------------------------make sure
- 
-    jsonify_oncoanalyser_metrics(group, samplesheet, results_dir, output)
- 
- 
-def jsonify_oncoanalyser_metrics(group, samplesheet, results_dir, output_json):
+    jsonify_oncoanalyser_metrics(group, samplesheet, results_dir, args.json, args.sample, args.readset)
+
+
+def jsonify_oncoanalyser_metrics(group, samplesheet, results_dir, output_json, sample_filter=None, readset_filter=None):
     """
     Add QC metrics to the project tracking json of the oncoanalyser run:
     one job per tool per sample, under every readset of that sample.
@@ -185,9 +196,19 @@ def jsonify_oncoanalyser_metrics(group, samplesheet, results_dir, output_json):
 
     readsets = {s["sample_id"]: s["readsets"] for s in samples.values() if s}
 
+    # optional filters (sample and readset)
     for sample_id, tools in sample_tools.items():
+        # if there is a sample filter, skip samples not in it
+        if sample_filter and sample_id not in sample_filter:
+            continue
+
+        # if there is a readset filter, skip readsets not in it
+        sample_readsets = [r for r in readsets[sample_id] if not readset_filter or r in readset_filter]
+        if not sample_readsets:
+            continue
+        
         jobs = [make_job(tool, sample_id, metrics) for tool, metrics in tools.items() if metrics]
-        add_jobs(json_output, sample_id, readsets[sample_id], jobs)
+        add_jobs(json_output, sample_id, sample_readsets, jobs)
 
     json_output["operation_status"] = "COMPLETED"
     save_json_file(output_json, json_output)
