@@ -13,7 +13,8 @@ from datetime import datetime
 logging.basicConfig(format='%(levelname)s: %(asctime)s - %(message)s', level=logging.INFO)
 logger = logging.getLogger(__name__)
 
- 
+ALLOWED_FLAGS = {"PASS", "WARNING", "FAILED", "MISSING", "NOT_APPLICABLE"} # for metrics
+UNFLAGGED_DELIVERABLE_FLAG = "NOT_APPLICABLE"   # to confirm
  
 def parse_arguments():
     """Parse command line arguments."""
@@ -112,7 +113,22 @@ def read_samplesheet(samplesheet):
 
     return samples
 
+def make_job(tool, sample_id, metrics):
+    """One job = one tool for one sample, with its metrics."""
+    for m in metrics:
+        if m["metric_flag"] is not None and m["metric_flag"] not in ALLOWED_FLAGS:
+            logger.warning(f"{tool} {m['metric_name']}: unknown flag {m['metric_flag']}")
+            m["metric_flag"] = None
+        if m["metric_deliverable"] and m["metric_flag"] is None: # the metric is deliverable but doesnt have a flag 
+            m["metric_flag"] = UNFLAGGED_DELIVERABLE_FLAG
 
+    return {
+        "job_name": f"{tool}.{sample_id}",   # per sample-id, so normal/tumor metrics don't overwrite each other
+        "job_start": None,                   # TODO:-------------------------------------------------------------------- from the trace
+        "job_stop": None,
+        "job_status": "COMPLETED",           # script only runs on  runs that are compelted
+        "metric": metrics,
+    }
 
 def main():
     """ Main """
@@ -131,8 +147,8 @@ def main():
  
 def jsonify_oncoanalyser_metrics(group, samplesheet, results_dir, output_json):
     """
-    Add QC metrics to the project tracking json of the oncoanalyser run.
-    1 set of metrics per sample_id (normal DNA, tumor DNA, tumor RNA if exists).
+    Add QC metrics to the project tracking json of the oncoanalyser run:
+    one job per tool per sample, under every readset of that sample.
     """
     # Open the json made at launch (oncoanalyser2json.py)
     json_output = load_json_file(output_json)
@@ -151,38 +167,52 @@ def jsonify_oncoanalyser_metrics(group, samplesheet, results_dir, output_json):
     # QSEE
     qsee = extract_qsee(group, tumor_dna, results_dir)
 
-    # QC metrics of each sample
-    sample_metrics = {}
-    sample_metrics[normal_dna] = qsee.get(normal_dna, []) + extract_bamtools(group, normal_dna, results_dir)
-    sample_metrics[tumor_dna] = (qsee.get(tumor_dna, [])
-                                 + extract_bamtools(group, tumor_dna, results_dir)
-                                 + extract_purple(group, tumor_dna, results_dir))
+    # metrics per sample, per tool (each tool = one job)
+    sample_tools = {
+        normal_dna: {
+            "qsee": qsee.get(normal_dna, []),
+            "bamtools": extract_bamtools(group, normal_dna, results_dir),
+        },
+        tumor_dna: {
+            "qsee": qsee.get(tumor_dna, []),
+            "bamtools": extract_bamtools(group, tumor_dna, results_dir),
+            "purple": extract_purple(group, tumor_dna, results_dir),
+        },
+    }
     if tumor_rna:
-        # **** ISOFOX files are named after the tumor DNA ****
-        sample_metrics[tumor_rna] = extract_isofox(group, tumor_dna, results_dir)
+        # ISOFOX files are named after the tumor DNA
+        sample_tools[tumor_rna] = {"isofox": extract_isofox(group, tumor_dna, results_dir)}
 
-    # Put them under each sample in the json
-    for sample_id, metrics in sample_metrics.items():
-        add_metrics(json_output, sample_id, metrics)
+    readsets = {s["sample_id"]: s["readsets"] for s in samples.values() if s}
 
-    # Save the json
+    for sample_id, tools in sample_tools.items():
+        jobs = [make_job(tool, sample_id, metrics) for tool, metrics in tools.items() if metrics]
+        add_jobs(json_output, sample_id, readsets[sample_id], jobs)
+
+    json_output["operation_status"] = "COMPLETED"
     save_json_file(output_json, json_output)
 
 
 
 
-def add_metrics(json_output, sample_id, metrics):
-    """
-    Put the metrics under the sample in the json.
-     metrics are REPLACED when the script re-runs on the same json
-    """
-    # TODO: which field of the oncoanalyser2json.py json holds the samplesheet sample_id
-    for sample in json_output["sample"]:
-        if sample.get("sample_name") == sample_id or sample_id in sample.get("sample_alias", []):
-            sample["metric"] = metrics
-            return
+def add_jobs(json_output, sample_id, readsets, jobs):
+    """Put the jobs under every readset of the sample. Same job name = replaced (rerun)."""
+    samples = json_output.setdefault("sample", [])
+    sample = next((s for s in samples if s.get("sample_name") == sample_id), None)
+    if sample is None:
+        logger.warning(f"{sample_id} not in the json, adding it")
+        sample = {"sample_name": sample_id, "readset": []}
+        samples.append(sample)
+    sample.pop("metric", None)  # remove old metrics if any
 
-    logger.warning(f"{sample_id} not found in the json, metrics not added")
+    #put jobs under each readset
+    new_names = {j["job_name"] for j in jobs} 
+    for name in readsets:
+        readset = next((r for r in sample.setdefault("readset", []) if r["readset_name"] == name), None)
+        if readset is None:
+            readset = {"readset_name": name, "job": []}
+            sample["readset"].append(readset) # adds all readsets from one sample_id
+        readset["job"] = [j for j in readset.get("job", []) if j["job_name"] not in new_names] + jobs #replaces the old job list with any new jobs -remove old ones
 
 
 def get_job_info(results_dir): # ------------------------IN PROGRESS - for now turnaround time for each job 
