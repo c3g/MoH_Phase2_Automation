@@ -79,4 +79,8 @@ nextflow run $ONCOANALYSER_HOME -profile singularity \\
   -resume
 """ > ${ANALYSIS_DIR}/${GROUP}.oncoanalyser_${TIMESTAMP}.submit
 
+# create submission config trace
+module purge && module load mugqic/oncoanalyser/3.0.0
+nextflow -c ${ONCOANALYSER_CONFIGS}/onco.config -c ${ONCO_SITE_DIR}/cardinal_site.config config -show-profiles > ${ANALYSIS_DIR}/Oncoanalyser_${TIMESTAMP}.trace.config
+
 echo "Oncoanalyser submission script created for group ${GROUP}."
