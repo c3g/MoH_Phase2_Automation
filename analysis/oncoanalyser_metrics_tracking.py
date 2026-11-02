@@ -34,6 +34,20 @@ def parse_arguments():
         required=True,
         help="Json to update in place (made by oncoanalyser2json.py)."
         )
+    parser.add_argument( #optional
+        '-s',
+        '--sample',
+        nargs='+',
+        default=None,
+        help="Only update these sample(s) (sample_id). Default: all samples of the samplesheet."
+        )
+    parser.add_argument( #optional
+        '-r',
+        '--readset',
+        nargs='+',
+        default=None,
+        help="Only update these readset(s). Default: all readsets of each sample."
+        )
     return parser.parse_args()
 
 
@@ -139,9 +153,10 @@ def main():
     group = os.path.basename(os.path.normpath(args.input))
     samplesheet = find_samplesheet(args.input, group)
     results_dir = os.path.join(args.input, "results")
-    jsonify_oncoanalyser_metrics(group, samplesheet, results_dir, args.json)
- 
-def jsonify_oncoanalyser_metrics(group, samplesheet, results_dir, output_json):
+    jsonify_oncoanalyser_metrics(group, samplesheet, results_dir, args.json, args.sample, args.readset)
+
+
+def jsonify_oncoanalyser_metrics(group, samplesheet, results_dir, output_json, sample_filter=None, readset_filter=None):
     """
     Add QC metrics to the project tracking json of the oncoanalyser run:
     one job per tool per sample, under every readset of that sample.
@@ -181,9 +196,19 @@ def jsonify_oncoanalyser_metrics(group, samplesheet, results_dir, output_json):
 
     readsets = {s["sample_id"]: s["readsets"] for s in samples.values() if s}
 
+    # optional filters (sample and readset)
     for sample_id, tools in sample_tools.items():
+        # if there is a sample filter, skip samples not in it
+        if sample_filter and sample_id not in sample_filter:
+            continue
+
+        # if there is a readset filter, skip readsets not in it
+        sample_readsets = [r for r in readsets[sample_id] if not readset_filter or r in readset_filter]
+        if not sample_readsets:
+            continue
+        
         jobs = [make_job(tool, sample_id, metrics) for tool, metrics in tools.items() if metrics]
-        add_jobs(json_output, sample_id, readsets[sample_id], jobs)
+        add_jobs(json_output, sample_id, sample_readsets, jobs)
 
     json_output["operation_status"] = "COMPLETED"
     save_json_file(output_json, json_output)
