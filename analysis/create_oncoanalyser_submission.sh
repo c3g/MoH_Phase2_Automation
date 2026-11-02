@@ -51,6 +51,7 @@ fi
 
 ONCOANALYSER_HOME=/cvmfs/soft.mugqic/CentOS6/software/oncoanalyser/oncoanalyser-3.0.0/pipeline/
 ONCOANALYSER_CONFIGS=/cvmfs/soft.mugqic/CentOS6/software/oncoanalyser/oncoanalyser-3.0.0/config
+MOH_DIR=/project/60007/MOH_PHASE2
 ONCO_SITE_DIR=${MOH_DIR}/oncoanalyser_prod/config
 
 echo """#!/bin/bash
