@@ -9,13 +9,13 @@ import glob
 import logging
 import gzip
 from datetime import datetime
- 
+
 logging.basicConfig(format='%(levelname)s: %(asctime)s - %(message)s', level=logging.INFO)
 logger = logging.getLogger(__name__)
 
 ALLOWED_FLAGS = {"PASS", "WARNING", "FAILED", "MISSING", "NOT_APPLICABLE"} # for metrics
 UNFLAGGED_DELIVERABLE_FLAG = "NOT_APPLICABLE"   # to confirm
- 
+
 def parse_arguments():
     """Parse command line arguments."""
     parser = argparse.ArgumentParser(
@@ -29,10 +29,10 @@ def parse_arguments():
         help="Folder of the analysis to be parsed."
         )
     parser.add_argument(
-        '-o',
-        '--output',
-        default=None,
-        help="Json to update (Default: <run folder>/<group>.oncoanalyser.json)."
+        '-j',
+        '--json',
+        required=True,
+        help="Json to update in place (made by oncoanalyser2json.py)."
         )
     return parser.parse_args()
 
@@ -139,11 +139,7 @@ def main():
     group = os.path.basename(os.path.normpath(args.input))
     samplesheet = find_samplesheet(args.input, group)
     results_dir = os.path.join(args.input, "results")
-    # the json lives in the run folder, so every step (launch, after the run) finds the same file
-    output = args.output or os.path.join(args.input, f"{group}.oncoanalyser.json") # -------------------------------make sure
- 
-    jsonify_oncoanalyser_metrics(group, samplesheet, results_dir, output)
- 
+    jsonify_oncoanalyser_metrics(group, samplesheet, results_dir, args.json)
  
 def jsonify_oncoanalyser_metrics(group, samplesheet, results_dir, output_json):
     """
