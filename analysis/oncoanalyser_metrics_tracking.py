@@ -8,13 +8,16 @@ import sys
 import glob
 import logging
 import gzip
-from datetime import datetime
+from datetime import datetime, timedelta
 
 logging.basicConfig(format='%(levelname)s: %(asctime)s - %(message)s', level=logging.INFO)
 logger = logging.getLogger(__name__)
 
 ALLOWED_FLAGS = {"PASS", "WARNING", "FAILED", "MISSING", "NOT_APPLICABLE"} # for metrics
 UNFLAGGED_DELIVERABLE_FLAG = "NOT_APPLICABLE"   # to confirm
+DATE_FMT = "%Y-%m-%d %H:%M:%S"
+
+HISTORY_TO_DB_STATUS = {"OK": "COMPLETED", "ERR": "FAILED", "-": "RUNNING"}
 
 def parse_arguments():
     """Parse command line arguments."""
@@ -138,7 +141,7 @@ def make_job(tool, sample_id, metrics):
 
     return {
         "job_name": f"{tool}.{sample_id}",   # per sample-id, so normal/tumor metrics don't overwrite each other
-        "job_start": None,                   # TODO:-------------------------------------------------------------------- from the trace
+        "job_start": None,                   # TODO:--------------------------------------------------------------------------------- from the trace
         "job_stop": None,
         "job_status": "COMPLETED",           # script only runs on  runs that are compelted
         "metric": metrics,
@@ -153,10 +156,10 @@ def main():
     group = os.path.basename(os.path.normpath(args.input))
     samplesheet = find_samplesheet(args.input, group)
     results_dir = os.path.join(args.input, "results")
-    jsonify_oncoanalyser_metrics(group, samplesheet, results_dir, args.json, args.sample, args.readset)
+    jsonify_oncoanalyser_metrics(args.input, group, samplesheet, results_dir, args.json, args.sample, args.readset)
 
 
-def jsonify_oncoanalyser_metrics(group, samplesheet, results_dir, output_json, sample_filter=None, readset_filter=None):
+def jsonify_oncoanalyser_metrics(run_dir, group, samplesheet, results_dir, output_json, sample_filter=None, readset_filter=None):
     """
     Add QC metrics to the project tracking json of the oncoanalyser run:
     one job per tool per sample, under every readset of that sample.
@@ -195,6 +198,8 @@ def jsonify_oncoanalyser_metrics(group, samplesheet, results_dir, output_json, s
         sample_tools[tumor_rna] = {"isofox": extract_isofox(group, tumor_dna, results_dir)}
 
     readsets = {s["sample_id"]: s["readsets"] for s in samples.values() if s}
+    head = head_job(run_dir, group) # updates the status of the head job that is created upon launch
+
 
     # optional filters (sample and readset)
     for sample_id, tools in sample_tools.items():
@@ -206,18 +211,55 @@ def jsonify_oncoanalyser_metrics(group, samplesheet, results_dir, output_json, s
         sample_readsets = [r for r in readsets[sample_id] if not readset_filter or r in readset_filter]
         if not sample_readsets:
             continue
-        
-        jobs = [make_job(tool, sample_id, metrics) for tool, metrics in tools.items() if metrics]
+
+        jobs = [head] + [make_job(tool, sample_id, metrics) for tool, metrics in tools.items() if metrics]        
         add_jobs(json_output, sample_id, sample_readsets, jobs)
 
-    json_output["operation_status"] = "COMPLETED"
+    json_output["operation_status"] = head["job_status"] # operation status is the same as head job status ----------------------------------------
     save_json_file(output_json, json_output)
 
 
+def parse_duration(text): #needed because onco history doesnt show end time, so we calculate it 
+    """Nextflow duration convert to timedelta."""
+    units = {"ms": 0.001, "s": 1, "m": 60, "h": 3600, "d": 86400}
+    seconds = 0
+    for part in text.split():
+        num = part.rstrip("smhd")
+        seconds += float(num) * units[part[len(num):]]
+    return timedelta(seconds=seconds)
+
+
+def head_job(run_dir, group): # -------for now , parsed from history
+    """
+    Head job oncoanalyser.<group> (same name as oncoanalyser2json.py), from .nextflow/history. 
+    Resumes of the same command count as one run: start = first of them, stop = end of the last one.
+    """
+    job = {"job_name": f"oncoanalyser.{group}", "job_start": None, "job_stop": None, "job_status": "PENDING"}
+
+    history = os.path.join(run_dir, '.nextflow', 'history')
+    if not os.path.exists(history):
+        return job  # not started yet
+
+    # columns: start, duration, run name, status, revision, session id, command
+    with open(history, encoding='utf-8') as f:
+        launches = [line.rstrip('\n').split('\t', 6) for line in f if line.count('\t') >= 6]
+    if not launches:
+        return job
+
+    last = launches[-1] # last line is always the latest run
+    job["job_start"] = last[0][:19]
+    #these next lines would be useful if we want the start to be the first try of this run
+    # same_run = [launch for launch in launches if launch[6] == last[6]]
+    #job["job_start"] = same_run[0][0][:19]
+    job["job_status"] = HISTORY_TO_DB_STATUS.get(last[3], "RUNNING") # default is running
+    if last[1] != "-":
+        end = datetime.strptime(last[0][:19], DATE_FMT) + parse_duration(last[1])
+        job["job_stop"] = end.strftime(DATE_FMT)
+    return job
 
 
 def add_jobs(json_output, sample_id, readsets, jobs):
-    """Put the jobs under every readset of the sample. Same job name = replaced (rerun)."""
+    """Put the jobs under every readset of the sample. Same job name = updated in place (rerun)."""
     samples = json_output.setdefault("sample", [])
     sample = next((s for s in samples if s.get("sample_name") == sample_id), None)
     if sample is None:
@@ -226,17 +268,22 @@ def add_jobs(json_output, sample_id, readsets, jobs):
         samples.append(sample)
     sample.pop("metric", None)  # remove old metrics if any
 
-    #put jobs under each readset
-    new_names = {j["job_name"] for j in jobs} 
+    # put the jobs under each readset of the sample
     for name in readsets:
         readset = next((r for r in sample.setdefault("readset", []) if r["readset_name"] == name), None)
         if readset is None:
             readset = {"readset_name": name, "job": []}
-            sample["readset"].append(readset) # adds all readsets from one sample_id
-        readset["job"] = [j for j in readset.get("job", []) if j["job_name"] not in new_names] + jobs #replaces the old job list with any new jobs -remove old ones
+            sample["readset"].append(readset)
+
+        existing = {j["job_name"]: j for j in readset.setdefault("job", [])}
+        for job in jobs:
+            if job["job_name"] in existing:
+                existing[job["job_name"]].update(job)   # write into the existing job (incl. the head job)
+            else:
+                readset["job"].append(job)
 
 
-def get_job_info(results_dir): # ------------------------IN PROGRESS - for now turnaround time for each job 
+def get_job_info(results_dir): # -------------------------------------------------------------------IN PROGRESS - for now turnaround time for each job 
     """
     Status of every task of the run, from Nextflow's newest trace file
     """
