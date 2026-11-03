@@ -2,6 +2,7 @@
 
 import argparse
 import csv
+import hashlib
 import json
 import os
 import sys
@@ -101,6 +102,14 @@ def parse_arguments():
         required=True,
         help="Json to update in place (made by oncoanalyser2json.py)."
         )
+    
+    parser.add_argument( #optional
+        '-f',
+        '--files',
+        action='store_true',
+        help="Also add each job's result files with md5. Only for finished runs."
+        )
+    
     parser.add_argument( #optional
         '-s',
         '--sample',
@@ -204,10 +213,9 @@ def main():
     group = os.path.basename(os.path.normpath(args.input))
     samplesheet = find_samplesheet(args.input, group)
     results_dir = os.path.join(args.input, "results")
-    jsonify_oncoanalyser_metrics(args.input, group, samplesheet, results_dir, args.json, args.sample, args.readset)
+    jsonify_oncoanalyser_metrics(args.input, group, samplesheet, results_dir, args.json, args.sample, args.readset, args.files)
 
-
-def jsonify_oncoanalyser_metrics(run_dir, group, samplesheet, results_dir, output_json, sample_filter=None, readset_filter=None): # -------------------------------------comments to be cleaned up at the end
+def jsonify_oncoanalyser_metrics(run_dir, group, samplesheet, results_dir, output_json, sample_filter=None, readset_filter=None, with_files=False): # -------------------------------------comments to be cleaned up at the end
     """
     Update the project tracking json of the oncoanalyser run (at launch, mid-run or after it ends):
     - every sample + readset of the samplesheet
@@ -232,6 +240,12 @@ def jsonify_oncoanalyser_metrics(run_dir, group, samplesheet, results_dir, outpu
     head = head_job(run_dir, group)        # updates the head job made at launch
     trace_rows = read_traces(results_dir)
 
+    # add files only if job successful
+    add_files = with_files and head["job_status"] == "COMPLETED"
+    if with_files and not add_files:
+        logger.warning("--files skipped: run not finished (head job not COMPLETED)")
+
+
     # 1. one job per process per sample (status + times from the trace)
     jobs = {sample_id: {} for sample_id in readsets}   # make an empty job for each sample
     for process, (owners, _) in PROCESSES.items():
@@ -240,7 +254,11 @@ def jsonify_oncoanalyser_metrics(run_dir, group, samplesheet, results_dir, outpu
         for role in owners:
             if samples[role]:
                 sample_id = samples[role]["sample_id"]
-                jobs[sample_id][process] = make_job(process, sample_id, group, trace_rows) # make job for every process in the PROCESSES list - if not started will be pending
+                 # make job for every process in the PROCESSES list - if not started will be pending
+                job = make_job(process, sample_id, group, trace_rows)   # status + times from the trace
+                if add_files: 
+                    job["file"] = job_files(process, sample_id, group, results_dir)  # list of {file_name, location_uri, md5...}
+                jobs[sample_id][process] = job
 
     # 2. add metrcis to jobs that have them
     qsee = extract_qsee(group, tumor_dna, results_dir)
@@ -397,13 +415,41 @@ def add_jobs(json_output, sample_id, readsets, jobs):
                 readset["job"].append(job)
 
 def set_db_flags(metrics):
-    """Make flags DB-safe: unknown flag -> None, deliverable without a flag -> UNFLAGGED_DELIVERABLE_FLAG.""" # ------------------------------------------------------confirm
+    """Make flags DB-safe: unknown flag: None, deliverable without a flag: UNFLAGGED_DELIVERABLE_FLAG.""" # ------------------------------------------------------confirm
     for m in metrics:
         if m["metric_flag"] not in ALLOWED_FLAGS:
             m["metric_flag"] = None
         if m["metric_deliverable"] and m["metric_flag"] is None:
             m["metric_flag"] = UNFLAGGED_DELIVERABLE_FLAG
     return metrics
+
+def md5sum(path):
+    """md5 of a file, read in 8 MB chunks for bams"""
+    h = hashlib.md5()
+    with open(path, 'rb') as f:
+        for chunk in iter(lambda: f.read(8 * 1024 * 1024), b''):
+            h.update(chunk)
+    return h.hexdigest()
+
+
+def job_files(process, sample_id, group, results_dir):
+    """Result files of one process for one sample (folder from PROCESSES), with md5."""
+    path = PROCESSES[process][1]
+    if path is None:                       # process has no results folder (e.g. FASTP_SPLIT)
+        return []
+    path = os.path.join(results_dir, group, path.format(s=sample_id))
+    if os.path.isfile(path):              
+        paths = [path]
+    else:                                  # a folder: take every file in it subfolders too
+        paths = sorted(p for p in glob.glob(os.path.join(path, "**"), recursive=True) if os.path.isfile(p))
+    if process == "CIDER":                 # exception: flat folder:  one cider/ folder for tumor DNA and RNA: keep this sample's files
+        paths = [p for p in paths if os.path.basename(p).startswith(sample_id)]
+    return [{
+        "file_name": os.path.basename(p),
+        "location_uri": f"cardinal://{os.path.abspath(p)}", # ---------------------------------------------------------------------------------------------------------------confirm
+        "file_md5sum": md5sum(p),
+        "file_deliverable": True,
+    } for p in paths]
 
 # currently 
 # group:  group_id from the samplesheet (e.g. MoHQ-CQ-36-94).
