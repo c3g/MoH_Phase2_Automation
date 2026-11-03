@@ -28,7 +28,62 @@ NEXTFLOW_TO_DB_STATUS = {
 }
 HISTORY_TO_DB_STATUS = {"OK": "COMPLETED", "ERR": "FAILED", "-": "RUNNING"}
 
+# # # HOW THE RESULTS FOLDER IS SCTRUCTURED # # #
+# some results are per sample (alignments etc) and some are pair-level (amber etc)
+# some results are under flat folder and some are under subfolders named after the sample (e.g. bamtools)
+# process -> (which samples get a job, its results under results/<group>/ ; {s} = the job's sample)
+N, T, R = "normal_dna", "tumor_dna", "tumor_rna"
+PROCESSES = { # processes incldue all the unique job names in the execution traces
+    # alignment
+    "FASTP_SPLIT":          ((N, T), None),
+    "BWAMEM2_ALIGN":        ((N, T), None),
+    "REDUX":                ((N, T), "alignments/{s}"),
+    "STAR_ALIGN":           ((R,),   None),
+    "SAMTOOLS_SORT":        ((R,),   None),
+    "GATK4_MARKDUPLICATES": ((R,),   "alignments/{s}"),
+    # per sample
+    "BAMTOOLS":             ((N, T), "bamtools/{s}"),
+    "CIDER":                ((T, R), "cider"),   # flat folder
+    "SAGE_APPEND_GERMLINE": ((N,),   "sage_append/{s}"),
+    "SAGE_APPEND_SOMATIC":  ((T,),   "sage_append/{s}"),
 
+    # tumor/normal pair -> on the tumor
+    "AMBER":                ((T,), "amber"),
+    "COBALT":               ((T,), "cobalt"),
+    "SAGE_SOMATIC":         ((T,), "sage/somatic"),
+    "SAGE_GERMLINE":        ((T,), "sage/germline"),
+    "SAGE_VISUALISER":      ((T,), "sage/visualiser"),
+    "PAVE_SOMATIC":         ((T,), "pave/somatic"),
+    "PAVE_GERMLINE":        ((T,), "pave/germline"),
+    "ESVEE":                ((T,), "esvee"),
+    "PURPLE":               ((T,), "purple"),
+    "LINX_SOMATIC":         ((T,), "linx/somatic_annotations"),
+    "LINX_GERMLINE":        ((T,), "linx/germline_annotations"),
+    "LINX_VISUALISER":      ((T,), "linx/somatic_plots"),
+    "LINXREPORT":           ((T,), "linx/{s}_linx.html"),
+    "CHORD":                ((T,), "chord"),
+    "SIGS":                 ((T,), "sigs"),
+    "LILAC":                ((T,), "lilac"),
+    "TEAL_PREP":            ((T,), None),
+    "TEAL_PIPELINE":        ((T,), "teal"),
+    "VIRUSBREAKEND":        ((T,), "virusbreakend"),
+    "VIRUSINTERPRETER":     ((T,), "virusinterpreter"),
+    "CUPPA":                ((T,), "cuppa"),
+    "NEO_FINDER":           ((T,), "neo/finder"),
+    "NEO_ANNOTATE_FUSIONS": ((T,), "neo/annotated_fusions"),
+    "NEO_SCORER":           ((T,), "neo/scorer"),
+    "QSEE":                 ((T,), "qsee"),
+    "ORANGE":               ((T,), "orange"),
+    # others
+    "PEACH":                ((N,), "peach"),
+    "ISOFOX":               ((R,), "isofox"),                # files named after the tumor DNA
+}
+# processes that only run when the samplesheet has RNA --------------------------------------------------CONFIRM
+RNA_PROCESSES = {
+    "STAR_ALIGN", "SAMTOOLS_SORT", "GATK4_MARKDUPLICATES", "ISOFOX",
+    "SAGE_APPEND_GERMLINE", "SAGE_APPEND_SOMATIC",
+    "NEO_ANNOTATE_FUSIONS",
+}
 def parse_arguments():
     """Parse command line arguments."""
     parser = argparse.ArgumentParser(
@@ -282,6 +337,38 @@ def read_traces(results_dir):
                 rows[row["name"]] = row
     return list(rows.values())
 
+def tool_job(process, sample_id, group, trace_rows):
+    """
+    Makes a job dict for each job that can be ingested into the json
+    Job <process>.<sample_id>: status + start/end from that process's tasks in the trace.
+    """
+    job = {"job_name": f"{process.lower()}.{sample_id}", "job_start": None, "job_stop": None, "job_status": "PENDING"}
+
+    rows = []
+    for r in trace_rows: #goes through all trace rows to find matching with the process name and add them to the list
+        name, _, tag = r["name"].rstrip(")").partition(" (")
+        if name.split(":")[-1] != process:
+            continue
+        # tag is group + pair task or group + sample +[_lane...] (per-sample task)
+        rest = tag.removeprefix(f"{group}_")
+        if tag == group or rest == sample_id or rest.startswith(f"{sample_id}_"):
+            rows.append(r)
+
+    if not rows:
+        return job  # nothing finished yet
+
+    statuses = [NEXTFLOW_TO_DB_STATUS.get(r["status"], "FAILED") for r in rows]
+    if "FAILED" in statuses:
+        job["job_status"] = "FAILED"
+    elif "CANCELLED" in statuses:
+        job["job_status"] = "CANCELLED"
+    else:
+        job["job_status"] = "COMPLETED"
+
+    starts, stops = zip(*[task_times(r) for r in rows])
+    job["job_start"] = min((t for t in starts if t), default=None)
+    job["job_stop"] = max((t for t in stops if t), default=None)
+    return job
 
 def task_times(row):
     """(start, stop) of one trace row. Real start/complete columns if present else computed."""
