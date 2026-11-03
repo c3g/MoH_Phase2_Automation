@@ -3,11 +3,13 @@
 ### WORK IN PROGRESS ###
 
 import argparse
-import glob
+import csv
+import hashlib
 import json
 import os
 import logging
-import configparser
+import oncoanalyser_metrics_tracking
+import subprocess
 
 logging.basicConfig(format='%(levelname)s: %(asctime)s - %(message)s', level=logging.INFO)
 logger = logging.getLogger(__name__)
@@ -74,17 +76,36 @@ def parse_samplesheet(samplesheet):
 
     return samples
 
-def parse_submit_script(submit_script):
+def parse_submit_script(submit_script_filename):
     """
     Parse the oncoanalyser submission script for the full command and configs used.
     """
 
+    with open(submit_script_filename, 'r') as submit_script:
+        single_line = submit_script.read().replace("\\\n", " ")
 
-def parse_config_files(config_files):
+        for line in single_line.splitlines():
+            commands = line.split()
+            # Find "nextflow run" command and following
+            for i in range(len(commands) - 1):
+                if commands[i] == "module" and commands[i + 1] == "load":
+                    version = commands[i + 2].split("/")[2]
+                if commands[i] == "nextflow" and commands[i + 1] == "run":
+                    onco_cmd = commands[i:]
+                    break
+    configs = []
+    for i, cmd in enumerate(onco_cmd[:-1]):
+        if cmd in ("-c", "-config"):
+            configs.extend(p for p in onco_cmd[i + 1].split(",") if p)
+
+    full_command = " ".join(onco_cmd)
+    
+    return full_command, version, configs
+
+def parse_config_files(config_files, config_trace_filename):
     """
     Look for config trace file, create if not found.
     """
-    config_trace_filename = os.path.join(args.input, f"Oncoanalyser_{args.timestamp}.trace.config")
 
     if not os.path.isfile(config_trace_filename):
         merge_config_files(config_files, config_trace_filename)
@@ -100,26 +121,29 @@ def merge_config_files(config_files, config_trace_filename):
     """
     Merge nextflow config files into a single trace config.
     """
-    cmd = ["module", "purge", "&&", "module" "load", "mugqic/oncoanalyser/3.0.0"]
+    cmd = ["module", "purge", "&&", "module", "load", "mugqic/oncoanalyser/3.0.0", "&&", "nextflow", "-q"]
 
     for config in config_files:
         cmd += ["-c", str(config)]
     cmd.append("config")
     cmd.append("-show-profiles")
+    cmd.append(">")
+    cmd.append(config_trace_filename)
 
     result = subprocess.run(
-            cmd,
-            cwd=args.input,
+            " ".join(cmd),
+            cwd=os.path.dirname(config_trace_filename),
+            shell=True,
             capture_output=True,
             text=True,
             check=False,
             timeout=120
             )
+
     if result.returncode != 0:
         raise RuntimeError(
-                f"Failed to create config trace file:\n{result.stderr}"
-                )
-    Path(config_trace_filename).write_text(result.stdout)
+            f"Failed to create config trace file:\n{result.stderr}"
+            )
 
 def md5_list(content_list):
     """
@@ -133,13 +157,13 @@ def md5_list(content_list):
     return hash_md5.hexdigest()
 
 ### TO MODIFY FOR ONCOANALYSER ###
-def create(json_file, sample, readsets):
+def create(json_file, group, sample, readsets):
     """
     Starts creating the json dump for the passed sample
     """
     # Run only if json doesn't already exist and oncoanaluser hasn't started running yet? 
     # If oncoanalyser already running/finished, call oncoanalyser_metrics_tracking.py instead
-    log.debug(f"Updating project_tracking JSON {json_file} for sample '{sample.name}'")
+    logger.debug(f"Updating project_tracking JSON {json_file} for sample '{sample}'")
 
     with open(json_file, 'r') as j_file:
         current_json_hash = json.load(j_file)
@@ -167,14 +191,16 @@ def create(json_file, sample, readsets):
             readset_json = sample_json['readset'][readset_hash_position[0]]
        
        # add something here that calls oncoanalyser_metrics_tracking.py if oncoanalyser is already running or has finished
+       # tbd on actual mechanism
+        oncoanalyser_done = False
         if oncoanalyser_done:
-            call oncoanalyser_metrics_tracking.py instead
+            oncoanalyser_metrics_tracking.main(args.input, json_file, readset=readset)
         else:
             job_json = {
-                'job_name': f"oncoanalyser.{args.group}",
+                'job_name': f"oncoanalyser.{group}",
                 'job_start': None,
                 'job_stop': None,
-                'job_status': None,
+                'job_status': "PENDING",
                     }
             readset_json['job'].append(job_json)
 
@@ -183,32 +209,33 @@ def create(json_file, sample, readsets):
 
     return json_file
 
-def init(
+def init_json(
     operation_cmd_line,
     operation_config_version,
     operation_config_files,
+    config_trace_filename,
     json_file
     ):
     """
     Initializes the json for project_tracking database
     """
 
-    operation_config_data = parse_config_files(operation_config_files)
+    operation_config_data = parse_config_files(operation_config_files, config_trace_filename)
 
     json_output = {
         'project_name': "MOH-Q",
         'operation_config_name': 'oncoanalyser_ini',
         'operation_config_version': operation_config_version, 
-        'operation_config_md5sum': md5_list(config_trace_content),
+        'operation_config_md5sum': md5_list(operation_config_data),
         'operation_config_data': ''.join(operation_config_data), # parse from somewhere
         'operation_platform': 'cardinal', # better if parsed from somewhere
         'operation_cmd_line': operation_cmd_line,
         'operation_name': "oncoanalyser",
-        'operation_pipeline': operation_pipeline, # parse from submission script
+        'operation_pipeline': "wgts",
         'sample': []
     }
 
-    log.debug(f"Initializing project_tracking JSON: {json_file}")
+    logger.debug(f"Initializing project_tracking JSON: {json_file}")
     with open(json_file, 'w', encoding='utf-8') as j_file:
         json.dump(json_output, j_file, ensure_ascii=False, indent=4)
 
@@ -218,21 +245,23 @@ def main():
     """ Main """
     args = parse_arguments()
 
-    output = args.output or f"{os.path.basename(args.input)}.oncoanalyser.{args.timestamp}.json"
+    output = args.output or os.path.join(args.input, f"{args.group}.oncoanalyser.{args.timestamp}.json")
     json_file = os.path.join(args.input, output)
-    if not os.path.isfile(os.path.join(json_file):
+    if not os.path.isfile(os.path.join(json_file)):
         # only parse submit script and config files if output json doesn't already exist
-        submit_script = os.path.join(args.input, f"{args.group}.oncoanalyser.{args.timestamp}.submit"))
+        submit_script = os.path.join(args.input, f"{args.group}.oncoanalyser_{args.timestamp}.submit")
         full_command, version, config_files = parse_submit_script(submit_script)
 
-        init_json(full_command, version, config_files, json_file)
+        config_trace_filename = os.path.join(args.input, f"Oncoanalyser_{args.timestamp}.trace.config")
+        init_json(full_command, version, config_files, config_trace_filename, json_file)
     
     # if output json already exists, skip parsing of submit scriot, go to here:
-    samplesheet = os.path.join(args.input, "samplesheets", args.timestamp, f"{os.path.basename(input)}.samplesheet.csv"))
+    samplesheet = os.path.join(args.input, "samplesheets", args.timestamp, f"{args.group}.samplesheet.csv")
     samples = parse_samplesheet(samplesheet)
 
     # add or update entries
-    for sample in samples:
-        readsets = sample.values()
-        create(json_file, sample, readsets)
+    for sample, readsets in samples.items():
+        create(json_file, args.group, sample, readsets)
 
+if __name__ == '__main__':
+    main()
