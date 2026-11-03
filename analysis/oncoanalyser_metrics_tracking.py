@@ -270,13 +270,16 @@ def head_job(run_dir, group): # -------for now , parsed from history
     return job
 
 def read_traces(results_dir):
-    """Every tasks trace row, from all execution_trace_*.txt. Key = full task name; newest launch wins."""
+    """Task rows of the latest launch (newest execution_trace_*.txt). A retried task keeps its last row."""
+    traces = sorted(glob.glob(os.path.join(results_dir, 'pipeline_info', 'execution_trace_*.txt')))
+    if not traces:
+        return []  # not started yet
+
     rows = {}
-    for trace in sorted(glob.glob(os.path.join(results_dir, 'pipeline_info', 'execution_trace_*.txt'))):
-        with open(trace, encoding='utf-8') as f:
-            for row in csv.DictReader(f, delimiter='\t'):
-                if row.get("name"):   # skip a half-written last line
-                    rows[row["name"]] = row
+    with open(traces[-1], encoding='utf-8') as f:
+        for row in csv.DictReader(f, delimiter='\t'):
+            if row.get("name"):  # skip a half-written last line
+                rows[row["name"]] = row
     return list(rows.values())
 
 
