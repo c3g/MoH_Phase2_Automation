@@ -2,6 +2,7 @@
 
 import argparse
 import csv
+import hashlib
 import json
 import os
 import sys
@@ -13,22 +14,22 @@ from datetime import datetime, timedelta
 logging.basicConfig(format='%(levelname)s: %(asctime)s - %(message)s', level=logging.INFO)
 logger = logging.getLogger(__name__)
 
-# need cleanup in the end
+# need cleanup in the end -------------------------------------------------------------------------------------------------------------------------
 ALLOWED_FLAGS = {"PASS", "WARNING", "FAILED", "MISSING", "NOT_APPLICABLE"} # for metrics
 UNFLAGGED_DELIVERABLE_FLAG = "NOT_APPLICABLE"   # to confirm
 DATE_FMT = "%Y-%m-%d %H:%M:%S"
 
 # mappping NF to DB
 # Nextflow trace status -> DB status
-NEXTFLOW_TO_DB_STATUS = {
+NEXTFLOW_TO_DB_STATUS = { # for tool jobs
     "COMPLETED": "COMPLETED",
     "CACHED": "COMPLETED",   # DB has no CACHED
     "FAILED": "FAILED",
     "ABORTED": "CANCELLED",
 }
-HISTORY_TO_DB_STATUS = {"OK": "COMPLETED", "ERR": "FAILED", "-": "RUNNING"}
+HISTORY_TO_DB_STATUS = {"OK": "COMPLETED", "ERR": "FAILED", "-": "RUNNING"} # for head job
 
-# # # HOW THE RESULTS FOLDER IS SCTRUCTURED # # #
+# # # HOW THE RESULTS FOLDER IS SCTRUCTURED and linking it to job/process name # # #
 # some results are per sample (alignments etc) and some are pair-level (amber etc)
 # some results are under flat folder and some are under subfolders named after the sample (e.g. bamtools)
 # process -> (which samples get a job, its results under results/<group>/ ; {s} = the job's sample)
@@ -101,6 +102,14 @@ def parse_arguments():
         required=True,
         help="Json to update in place (made by oncoanalyser2json.py)."
         )
+    
+    parser.add_argument( #optional
+        '-f',
+        '--files',
+        action='store_true',
+        help="Also add each job's result files with md5. Only for finished runs."
+        )
+    
     parser.add_argument( #optional
         '-s',
         '--sample',
@@ -204,71 +213,85 @@ def main():
     group = os.path.basename(os.path.normpath(args.input))
     samplesheet = find_samplesheet(args.input, group)
     results_dir = os.path.join(args.input, "results")
-    jsonify_oncoanalyser_metrics(args.input, group, samplesheet, results_dir, args.json, args.sample, args.readset)
+    jsonify_oncoanalyser_metrics(args.input, group, samplesheet, results_dir, args.json, args.sample, args.readset, args.files)
 
-
-def jsonify_oncoanalyser_metrics(run_dir, group, samplesheet, results_dir, output_json, sample_filter=None, readset_filter=None):
+def jsonify_oncoanalyser_metrics(run_dir, group, samplesheet, results_dir, output_json, sample_filter=None, readset_filter=None, with_files=False): # -------------------------------------comments to be cleaned up at the end
     """
     Update the project tracking json of the oncoanalyser run (at launch, mid-run or after it ends):
     - every sample + readset of the samplesheet
     - the head job oncoanalyser.<group> (status + times from .nextflow/history)
-    - one job per QC tool per sample, only for tools that already have outputs (for now)
+    - one job per process per sample (status + times from the latest Nextflow trace)
+    - QC metrics on the qsee, bamtools, purple, isofox jobs
     - operation_status = head job status
     """
     # Open the json made at launch (oncoanalyser2json.py)
     json_output = load_json_file(output_json)
     if json_output is None:
-        # load_json_file() already logged why (missing or broken file)
         logger.error("No launch json to add metrics to - stopping.")
         sys.exit(1)
 
-    
-    # Samples of the run + their readsets (normal/tumor DNA, tumor RNA if exists)
+    # Samples (sample-ids) of the run + their readsets (normal/tumor DNA, tumor RNA if exists)
     samples = read_samplesheet(samplesheet)
     normal_dna = samples["normal_dna"]["sample_id"]
     tumor_dna = samples["tumor_dna"]["sample_id"]
     tumor_rna = samples["tumor_rna"]["sample_id"] if samples["tumor_rna"] else None
 
-    # QSEE
-    qsee = extract_qsee(group, tumor_dna, results_dir)
-
-    # metrics per sample, per tool (each tool = one job)
-    sample_tools = {
-        normal_dna: {
-            "qsee": qsee.get(normal_dna, []),
-            "bamtools": extract_bamtools(group, normal_dna, results_dir),
-        },
-        tumor_dna: {
-            "qsee": qsee.get(tumor_dna, []),
-            "bamtools": extract_bamtools(group, tumor_dna, results_dir),
-            "purple": extract_purple(group, tumor_dna, results_dir),
-        },
-    }
-    if tumor_rna:
-        # ISOFOX files are named after the tumor DNA
-        sample_tools[tumor_rna] = {"isofox": extract_isofox(group, tumor_dna, results_dir)}
-
     readsets = {s["sample_id"]: s["readsets"] for s in samples.values() if s}
-    head = head_job(run_dir, group) # updates the status of the head job that is created upon launch
+    head = head_job(run_dir, group)        # updates the head job made at launch
+    trace_rows = read_traces(results_dir)
+
+    # add files only if job successful
+    add_files = with_files and head["job_status"] == "COMPLETED"
+    if with_files and not add_files:
+        logger.warning("--files skipped: run not finished (head job not COMPLETED)")
 
 
-    # optional filters (sample and readset)
-    for sample_id, tools in sample_tools.items():
-        # if there is a sample filter, skip samples not in it
-        if sample_filter and sample_id not in sample_filter:
+    # 1. one job per process per sample (status + times from the trace)
+    jobs = {sample_id: {} for sample_id in readsets}   # make an empty job for each sample
+    for process, (owners, _) in PROCESSES.items():
+        if process in RNA_PROCESSES and not tumor_rna: # dont make rna jobs if they dont exist
             continue
+        for role in owners:
+            if samples[role]:
+                sample_id = samples[role]["sample_id"]
+                 # make job for every process in the PROCESSES list - if not started will be pending
+                job = make_job(process, sample_id, group, trace_rows)   # status + times from the trace
+                if add_files: 
+                    job["file"] = job_files(process, sample_id, group, results_dir)  # list of {file_name, location_uri, md5...}
+                jobs[sample_id][process] = job
 
-        # if there is a readset filter, skip readsets not in it
-        sample_readsets = [r for r in readsets[sample_id] if not readset_filter or r in readset_filter]
+    # 2. add metrcis to jobs that have them
+    qsee = extract_qsee(group, tumor_dna, results_dir)
+    metrics = [
+        (normal_dna, "QSEE",     qsee.get(normal_dna, [])),
+        (normal_dna, "BAMTOOLS", extract_bamtools(group, normal_dna, results_dir)),
+        (tumor_dna,  "QSEE",     qsee.get(tumor_dna, [])),
+        (tumor_dna,  "BAMTOOLS", extract_bamtools(group, tumor_dna, results_dir)),
+        (tumor_dna,  "PURPLE",   extract_purple(group, tumor_dna, results_dir)),
+    ]
+    if tumor_rna:
+        # IMP: ISOFOX files are named after the tumor DNA
+        metrics.append((tumor_rna, "ISOFOX", extract_isofox(group, tumor_dna, results_dir)))
+
+    for sample_id, process, sample_metrics in metrics:
+        if not sample_metrics:
+            continue
+        # QSEE runs on the tumor BUT THE NORMAL ALSO GET QSEE METRICS< SO HERE WE ADD MAKE_JOB AS WELL
+        job = jobs[sample_id].get(process) or make_job(process, sample_id, group, trace_rows) 
+        job["metric"] = set_db_flags(sample_metrics) # dds metrics to the jobs 
+        jobs[sample_id][process] = job #put job back in the sample's metrics list
+
+    # 3.  the json (optional sample/readset filters)
+    for sample_id, sample_jobs in jobs.items():
+        if sample_filter and sample_id not in sample_filter: # if there is sample filter and the sample is not in it, skip it
+            continue 
+        sample_readsets = [r for r in readsets[sample_id] if not readset_filter or r in readset_filter] # keep only readsets that are in the filter if any
         if not sample_readsets:
             continue
+        add_jobs(json_output, sample_id, sample_readsets, [head] + list(sample_jobs.values())) # put the job in the json under every readset of the sample
 
-        jobs = [head] + [make_job(tool, sample_id, metrics) for tool, metrics in tools.items() if metrics]        
-        add_jobs(json_output, sample_id, sample_readsets, jobs)
-
-    json_output["operation_status"] = head["job_status"] # operation status is the same as head job status ----------------------------------------
+    json_output["operation_status"] = head["job_status"]   # operation status = head job status -----------------------------------------------------------------------------------confirm
     save_json_file(output_json, json_output)
-
 
 def parse_duration(text): #needed because onco history doesnt show end time, so we calculate it 
     """Nextflow duration convert to timedelta."""
@@ -391,6 +414,42 @@ def add_jobs(json_output, sample_id, readsets, jobs):
             else:
                 readset["job"].append(job)
 
+def set_db_flags(metrics):
+    """Make flags DB-safe: unknown flag: None, deliverable without a flag: UNFLAGGED_DELIVERABLE_FLAG.""" # ------------------------------------------------------confirm
+    for m in metrics:
+        if m["metric_flag"] not in ALLOWED_FLAGS:
+            m["metric_flag"] = None
+        if m["metric_deliverable"] and m["metric_flag"] is None:
+            m["metric_flag"] = UNFLAGGED_DELIVERABLE_FLAG
+    return metrics
+
+def md5sum(path):
+    """md5 of a file, read in 8 MB chunks for bams"""
+    h = hashlib.md5()
+    with open(path, 'rb') as f:
+        for chunk in iter(lambda: f.read(8 * 1024 * 1024), b''):
+            h.update(chunk)
+    return h.hexdigest()
+
+
+def job_files(process, sample_id, group, results_dir):
+    """Result files of one process for one sample (folder from PROCESSES), with md5."""
+    path = PROCESSES[process][1]
+    if path is None:                       # process has no results folder (e.g. FASTP_SPLIT)
+        return []
+    path = os.path.join(results_dir, group, path.format(s=sample_id))
+    if os.path.isfile(path):              
+        paths = [path]
+    else:                                  # a folder: take every file in it subfolders too
+        paths = sorted(p for p in glob.glob(os.path.join(path, "**"), recursive=True) if os.path.isfile(p))
+    if process == "CIDER":                 # exception: flat folder:  one cider/ folder for tumor DNA and RNA: keep this sample's files
+        paths = [p for p in paths if os.path.basename(p).startswith(sample_id)]
+    return [{
+        "file_name": os.path.basename(p),
+        "location_uri": f"cardinal://{os.path.abspath(p)}", # ---------------------------------------------------------------------------------------------------------------confirm
+        "file_md5sum": md5sum(p),
+        "file_deliverable": True,
+    } for p in paths]
 
 # currently 
 # group:  group_id from the samplesheet (e.g. MoHQ-CQ-36-94).
