@@ -194,22 +194,6 @@ def read_samplesheet(samplesheet):
 
     return samples
 
-def make_job(tool, sample_id, metrics):
-    """One job = one tool for one sample, with its metrics."""
-    for m in metrics:
-        if m["metric_flag"] is not None and m["metric_flag"] not in ALLOWED_FLAGS:
-            logger.warning(f"{tool} {m['metric_name']}: unknown flag {m['metric_flag']}")
-            m["metric_flag"] = None
-        if m["metric_deliverable"] and m["metric_flag"] is None: # the metric is deliverable but doesnt have a flag 
-            m["metric_flag"] = UNFLAGGED_DELIVERABLE_FLAG
-
-    return {
-        "job_name": f"{tool}.{sample_id}",   # per sample-id, so normal/tumor metrics don't overwrite each other
-        "job_start": None,                   # TODO:--------------------------------------------------------------------------------- from the trace
-        "job_stop": None,
-        "job_status": "COMPLETED",           # # a tool job only exists once its outputs exist (the script can still be run when the head job is running though)
-        "metric": metrics,
-    }
 
 def main():
     """ Main """
@@ -337,7 +321,7 @@ def read_traces(results_dir):
                 rows[row["name"]] = row
     return list(rows.values())
 
-def tool_job(process, sample_id, group, trace_rows):
+def make_job(process, sample_id, group, trace_rows):
     """
     Makes a job dict for each job that can be ingested into the json
     Job <process>.<sample_id>: status + start/end from that process's tasks in the trace.
