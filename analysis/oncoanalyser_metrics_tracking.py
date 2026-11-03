@@ -13,11 +13,21 @@ from datetime import datetime, timedelta
 logging.basicConfig(format='%(levelname)s: %(asctime)s - %(message)s', level=logging.INFO)
 logger = logging.getLogger(__name__)
 
+# need cleanup in the end
 ALLOWED_FLAGS = {"PASS", "WARNING", "FAILED", "MISSING", "NOT_APPLICABLE"} # for metrics
 UNFLAGGED_DELIVERABLE_FLAG = "NOT_APPLICABLE"   # to confirm
 DATE_FMT = "%Y-%m-%d %H:%M:%S"
 
+# mappping NF to DB
+# Nextflow trace status -> DB status
+NEXTFLOW_TO_DB_STATUS = {
+    "COMPLETED": "COMPLETED",
+    "CACHED": "COMPLETED",   # DB has no CACHED
+    "FAILED": "FAILED",
+    "ABORTED": "CANCELLED",
+}
 HISTORY_TO_DB_STATUS = {"OK": "COMPLETED", "ERR": "FAILED", "-": "RUNNING"}
+
 
 def parse_arguments():
     """Parse command line arguments."""
@@ -259,6 +269,29 @@ def head_job(run_dir, group): # -------for now , parsed from history
         job["job_stop"] = end.strftime(DATE_FMT)
     return job
 
+def read_traces(results_dir):
+    """Every tasks trace row, from all execution_trace_*.txt. Key = full task name; newest launch wins."""
+    rows = {}
+    for trace in sorted(glob.glob(os.path.join(results_dir, 'pipeline_info', 'execution_trace_*.txt'))):
+        with open(trace, encoding='utf-8') as f:
+            for row in csv.DictReader(f, delimiter='\t'):
+                if row.get("name"):   # skip a half-written last line
+                    rows[row["name"]] = row
+    return list(rows.values())
+
+
+def task_times(row):
+    """(start, stop) of one trace row. Real start/complete columns if present else computed."""
+    try:
+        start, stop = row.get("start") or "-", row.get("complete") or "-"
+        if start != "-" and stop != "-":
+            return start[:19], stop[:19]
+        # older traces: end = submit + duration, start = end - realtime
+        end = datetime.strptime(row["submit"][:19], DATE_FMT) + parse_duration(row["duration"])
+        begin = end - parse_duration(row["realtime"])
+        return begin.strftime(DATE_FMT), end.strftime(DATE_FMT)
+    except (TypeError, ValueError, KeyError):
+        return None, None
 
 def add_jobs(json_output, sample_id, readsets, jobs):
     """Put the jobs under every readset of the sample. Same job name = updated in place (rerun)."""
