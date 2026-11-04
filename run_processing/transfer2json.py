@@ -109,7 +109,7 @@ def jsonify_raw_data_transfer(batch_file, source, destination, output, operation
             src_location_uri = f"{source}://{src_path}"
             dest_location_uri = f"{destination}://{dest_path.strip()}"
 
-            _append_file(json_output, readset_name, src_location_uri, dest_location_uri)
+            _append_file(json_output, readset, src_location_uri, dest_location_uri)
             
     with open(output, 'w', encoding='utf-8') as file:
         json.dump(json_output, file, ensure_ascii=False, indent=4)
