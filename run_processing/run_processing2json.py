@@ -83,7 +83,7 @@ def parse_samplesheet(df, sample_name):
     specimen = sample_df["Case"].values[0]
     cohort = sample_df["Cohort"].values[0]
     case_type = sample_df["CaseType"].values[0]
-    oncotree_code = re.findall(r"\(([^)]*)\)", sample_df["OncoTree Code"].values[0])
+    oncotree_code = re.findall(r"\(([^)]*)\)", sample_df["OncoTree Code"].values[0])[0]
     cancer_type = sample_df["OncoTree Code"].values[0].split(" (")[0]
     tumor = True if sample_df["Type"].values[0] == "DT" or sample_df["Type"].values[0] == "RT" else False
     alias = sample_df["Sample"].values[0]
