@@ -63,18 +63,18 @@ def _append_file(json_output, readset_name, src_location_uri, dest_location_uri)
                 )
             return
         #Not found: create new
-        json_output["readset"].append(
-                {
-                    "readset_name": readset_name,
-                    "readset_state": "VALID",
-                    "file": [
-                        {
-                            "src_location_uri": src_location_uri,
-                            "dest_location_uri": dest_location_uri
-                        }
-                    ]
-                }
-            )
+    json_output["readset"].append(
+            {
+                "readset_name": readset_name,
+                "readset_state": "VALID",
+                "file": [
+                    {
+                        "src_location_uri": src_location_uri,
+                        "dest_location_uri": dest_location_uri
+                    }
+                ]
+            }
+        )
 
 def jsonify_delivery_transfer(batch_file, source, destination, delivery_json, output, operation_cmd_line, start=None, stop=None):
     """Writing transfer json based on json delivery file"""""""""
