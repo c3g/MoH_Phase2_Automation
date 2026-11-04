@@ -25,7 +25,7 @@ def parse_arguments():
         '-i',
         '--input',
         required=True,
-        help="Folder of the Run to be converted. To be formatted like this /lb/robot/research/freezeman-processing/<sequencer>/<year>/<run_folder>."
+        help="Folder of the Run to be converted. To be formatted like this /nb/Research/freezeman-processing/<sequencer>/<year>/<run_folder>."
         )
     parser.add_argument(
         '-o',
@@ -175,14 +175,14 @@ def jsonify_run_processing(input_run_folder, fms_json, lanes_json, output, lanes
                     {
                         "location_uri": f"abacus://{input_run_folder.replace('/lb/robot/research', '/nb/Research')}/{fastq1}",
                         "file_name": f"{os.path.basename(fastq1)}",
-                        "file_md5sum": "TBD", #compute_md5(fastq1),
+                        "file_md5sum": compute_md5(os.path.join(input_run_folder, fastq1)),
                         "file_extra_metadata": {"read_type": "R1"},
                         "file_deliverable": True
                         },
                     {
                         "location_uri": f"abacus://{input_run_folder.replace('/lb/robot/research', '/nb/Research')}/{fastq2}",
                         "file_name": f"{os.path.basename(fastq2)}",
-                        "file_md5sum": "TBD", #compute_md5(fastq2),
+                        "file_md5sum": compute_md5(os.path.join(input_run_folder,fastq2)),
                             "file_extra_metadata": {"read_type": "R2"},
                             "file_deliverable": True
                             }
