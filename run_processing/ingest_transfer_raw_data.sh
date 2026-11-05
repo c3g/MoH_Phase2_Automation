@@ -79,7 +79,7 @@ if [ -s "$input"  ]; then
     
     ~/MoH_Phase2_Automation/run_processing/run_processing2json.py $run_processing2json_args --input $input --output $run_processing_json
 
-    ret="$(pt-cli ingest run_processing --input-json $run_processing_json 2>&1 || true)"
+    ret="$(pt-cli --url-root https://project-tracking.c3g-app.dev-sd4h.ca/ --project MOH-Q ingest run_processing --input-json $run_processing_json 2>&1 || true)"
     echo -e "$ret" | tee "${run_processing_json/.json/_${TIMESTAMP}_run_processing_ingestion.log}"
     if ! [[ $ret == *"has to be unique"*  ]] && [[ $ret == *"BadRequestError"*  ]]; then
         echo "Run ${$runfolder} already ingested, proceeding to transfer of lane(s) ${lane}."
