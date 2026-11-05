@@ -41,7 +41,7 @@ while getopts 'hr::s::g:' OPTION; do
 done
 
 # mutually exclusive arguments
-if [[ "$sample" && "$sample_group" ]]; then
+if [[ "$sample" && "$group" ]]; then
     echo -e "ERROR: Arguments -r, -s and -g are mutually exclusive. Supply only one.\n"
     usage
 fi
@@ -52,13 +52,13 @@ if [[ "$readset" && "$sample" ]]; then
 fi
 
 # mutually exclusive arguments
-if [[ "$readset" && "$sample_group" ]]; then
+if [[ "$readset" && "$group" ]]; then
     echo -e "ERROR: Arguments -s and -g are mutually exclusive. Supply only one.\n"
     usage
 fi
 
 # mandatory arguments
-if [[ ! "$readset" && ! "$sample" && ! "$sample_group" ]]; then
+if [[ ! "$readset" && ! "$sample" && ! "$group" ]]; then
     echo -e "ERROR: Missing mandatory argument -r, -s or -g.\n"
     usage
 fi
@@ -67,20 +67,38 @@ source ~/project_tracking_cli/.venv/bin/activate
 # TBD WHERE PHASE2 will be run? MOH dir has a lot of files from phase 1. Better to start fresh?
 MOH_DIR=/project/60007/MOH_PHASE2
 
-# call to DB to check on status of other readsets linked to the same sample
+if [[ "$readset" ]]; then
+    # find readset sample
+    READSET_ID=`pt-cli --url-root https://project-tracking.c3g-app.dev-sd4h.ca/ --project MOH-Q route "/project/MOH-Q/readsets?json={\"readset_name\":\"${readset}\"}" \
+    | jq -c '.DB_ACTION_OUTPUT[] | .id'`
+    sample=`pt-cli --url-root https://project-tracking.c3g-app.dev-sd4h.ca/ --project MOH-Q route "/project/MOH-Q/readsets/${READSET_ID}/samples" \
+    | jq -r -c '.DB_ACTION_OUTPUT[] | .name'`
 
-# if all readsets for sample are valid (transferred) find other members of group(s)
+if [[ "$sample" ]]; then
+    # find group(s) for sample
+    group=`pt-cli --url-root https://project-tracking.c3g-app.dev-sd4h.ca/ --project MOH-Q sample_group list --sample_name $sample \
+       | jq -r -c '.[] | select(.deleted == false and .deprecated == false) | .name'`
+# what if more than one group returned?
 
-# if sample is RNA and DNA not yet available, do nothing
-
-# if sample is DNA and both tumor/normal available and valid, but RNA isn't launch with DNA samplesheet only
-
-# if sample is DNA and both tumor/normal available and valid and RNA is available launch with full samplesheet
-
-# # if sample is RNA and DNA available, but not yet finished running, do nothing (will need to think of another trigger? Maybe upon oncoanalyser finishing?)
-
-# if sample is RNA and DNA has already been run, launch with full sample sheet
+GROUP=$group
 ANALYSIS_DIR=${MOH_DIR}/${CASE}/${GROUP}
+mkdir -p ${ANALYSIS_DIR}/tmp
+ret=$(pt-cli --url-root http://127.0.0.1:5000 --project MOH-Q digest oncoanalyser_samplesheet --sample_group_name $group --endpoint c3g-data-repos 2>&1 || true)
+if [[ "$ret" == *WARNING* ]]; then 
+    echo $ret
+    echo "Not ready to launch oncoanalyser."
+    exit
+fi
+
+tmp_sheet=${ANALYSIS_DIR}/tmp/${GROUP}.samplesheet.csv
+
+if grep -q "tumor,dna" ${tmp_sheet} && grep -q "normal,dna" ${tmp_sheet}; then
+    echo "Ready to launch oncoanalyser."
+else
+    echo "Not ready to launch oncoanalyser."
+    exit
+fi
+
 TIMESTAMP=$(date +%FT%H.%M.%S)
 ~/MoH_Phase2_Automation/analysis/create_samplesheet.sh ${NUCLEIC_ACID_TYPE} -g ${GROUP} -o ${ANALYSIS_DIR}/samplesheets/${TIMESTAMP}
 
@@ -89,7 +107,7 @@ TIMESTAMP=$(date +%FT%H.%M.%S)
 
 sbatch ${ANALYSIS_DIR}/${GROUP}.oncoanalyser_${TIMESTAMP}.submit
 
-echo "Oncoanalyser launched for $GROUP."
+echo "Oncoanalyser launched for ${GROUP}."
 
 ONCOANALYSER_JSON=${ANALYSIS_DIR}/${GROUP}.oncoanalyser.json
 
