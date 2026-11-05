@@ -57,12 +57,12 @@ else
 fi
 
 # source project tracking client environment
-source pt-cli_venv/bin/activate
+source ~/pt-cli_venv/bin/activate
 
 # call client to get samplesheet for Case/CaseType
 # exact call TBD
 if [[ "$sample" ]]; then
-    SAMPLE_GROUPS=`pt-cli --url-root https://c3g-portal.dev-sd4h.ca --project MOH-Q sample_group list --sample_name ${sample}` # find group name for sample
+    SAMPLE_GROUPS=`pt-cli --url-root https://project-tracking.c3g-app.dev-sd4h.ca/ --project MOH-Q sample_group list --sample_name ${sample}` # find group name for sample
     GROUP_NAME=$(echo "$SAMPLE_GROUPS" | jq -r '.[0].name')
 else
     GROUP_NAME=${sample_group}
@@ -73,5 +73,5 @@ if [[ "$output_dir" ]]; then
 else
     OUTPUT_DIR=""
 
-pt-cli --url-root https://c3g-portal.dev-sd4h.ca --project MOH-Q digest oncoanalyser_samplesheet --sample_group_name ${GROUP_NAME} --endpoint c3g-data-repos ${TYPE_ARG} ${OUTPUT_DIR}
+pt-cli --url-root https://project-tracking.c3g-app.dev-sd4h.ca/ --project MOH-Q digest oncoanalyser_samplesheet --sample_group_name ${GROUP_NAME} --endpoint c3g-data-repos ${TYPE_ARG} ${OUTPUT_DIR}
 

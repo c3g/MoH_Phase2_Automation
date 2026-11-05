@@ -95,4 +95,4 @@ ONCOANALYSER_JSON=${ANALYSIS_DIR}/${GROUP}.oncoanalyser.json
 
 # add oncoanalyser launch json and ingest into DB to set operation to RUNNING
 ~/MoH_Phase2_Automation/analysis/oncoanalyser2json.sh -i ${ANALYSIS_DIR} -t ${TIMESTAMP} -o ${ONCOANALYSER_JSON}
-pt-cli --project MOH-Q ingest analysis --input-json ${ONCOANALYSER_JSON}
+pt-cli --url-root https://project-tracking.c3g-app.dev-sd4h.ca/ --project MOH-Q ingest analysis --input-json ${ONCOANALYSER_JSON}
