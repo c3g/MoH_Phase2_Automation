@@ -63,7 +63,7 @@ if [[ ! "$readset" && ! "$sample" && ! "$sample_group" ]]; then
     usage
 fi
 
-source ~/project_tracking_cli/venv/bin/activate
+source ~/project_tracking_cli/.venv/bin/activate
 # TBD WHERE PHASE2 will be run? MOH dir has a lot of files from phase 1. Better to start fresh?
 MOH_DIR=/project/60007/MOH_PHASE2
 

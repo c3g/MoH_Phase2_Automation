@@ -63,7 +63,7 @@ module use "$MUGQIC_INSTALL_HOME/modulefiles"
 ##################################################
 # Initialization
 module purge
-source ~/project_tracking_cli/venv/bin/activate
+source ~/project_tracking_cli/.venv/bin/activate
 
 ## Prepare run list
 folder_prefix=/nb/Research/freezeman-processing
