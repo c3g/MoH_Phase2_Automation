@@ -78,7 +78,10 @@ if [[ "$sample" ]]; then
     # find group(s) for sample
     group=`pt-cli --url-root https://project-tracking.c3g-app.dev-sd4h.ca/ --project MOH-Q sample_group list --sample_name $sample \
        | jq -r -c '.[] | select(.deleted == false and .deprecated == false) | .name'`
+
+### TO DO ###
 # what if more than one group returned?
+# add check to see if oncoanalyser is currently running
 
 GROUP=$group
 ANALYSIS_DIR=${MOH_DIR}/${CASE}/${GROUP}
