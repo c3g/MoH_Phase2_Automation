@@ -89,10 +89,12 @@ def parse_samplesheet(df, sample_name):
     alias = sample_df["Sample"].values[0]
     if tumor == True:
         index = sample_df["Index"].values[0] if sample_df["Index"].values[0] >=1 else 1
+        group = f"{specimen}_G{index}"
     else:
-        index = None
+        indexes = df.loc[df['Case'] == specimen]['Index'].fillna("1").drop_duplicates().values
+        group = [f"{specimen}_G{index}" for index in indexes]
 
-    return specimen, cohort, case_type, oncotree_code, cancer_type, tumor, alias, index
+    return specimen, cohort, case_type, oncotree_code, cancer_type, tumor, alias, group
 
 def jsonify_run_processing(input_run_folder, fms_json, lanes_json, output, lanes, samples, nucleic_acid_type):
     """
@@ -130,7 +132,7 @@ def jsonify_run_processing(input_run_folder, fms_json, lanes_json, output, lanes
             sample_name = readset["sample_name"]
             if sample_name.startswith(("MoHQ-", "MOHQ-")) and lane_json['lane'] in lanes and sample_name in samples:
                 # instead of parsing specimen, cohort, and institution from sample name, query google sheet with metadata
-                specimen, cohort, case_type, oncotree_code, cancer_type, tumor, alias, index = parse_samplesheet(df, sample_name)
+                specimen, cohort, case_type, oncotree_code, cancer_type, tumor, alias, group = parse_samplesheet(df, sample_name)
                 # Check if the specimen is already in json_output["specimen"]
                 specimen_names = [spec["specimen_name"] for spec in json_output["specimen"]]
                 if specimen in specimen_names:
@@ -165,7 +167,7 @@ def jsonify_run_processing(input_run_folder, fms_json, lanes_json, output, lanes
                         "sample_tumour": tumor,
                         "sample_oncotree_code": oncotree_code if tumor == True else None,
                         "sample_cancer_type": cancer_type if tumor == True else None,
-                        "sample_group_name": f"{specimen}_G{index}" if tumor == True else None,
+                        "sample_group_name": group,
                         "readset": []
                         }
                     specimen_json["sample"].append(sample_json)
