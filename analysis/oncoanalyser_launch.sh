@@ -81,7 +81,16 @@ if [[ "$sample" ]]; then
 
 ### TO DO ###
 # what if more than one group returned?
-# add check to see if oncoanalyser is currently running
+
+# check to see if oncoanalyser is currently running
+ret=$(~/MoH_Phase2_Automation/analysis/check_operations.py -g group 2>&1 || true)
+if [[ "$ret" != *\"decision\":\ \"GO\"* ]]; then 
+    echo "Continue to samplesheet creation."
+else
+    echo "$ret"
+    echo "Not ready to launch oncoanalyser."
+    exit
+fi
 
 GROUP=$group
 ANALYSIS_DIR=${MOH_DIR}/${CASE}/${GROUP}
