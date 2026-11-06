@@ -16,7 +16,7 @@ usage() {
     echo " -h                               Display this help message."
     echo " -r <readset>                     Readset for which to construct sample sheet and launch analysis. To be used instead of -s <sample> or -g <group>."
     echo " -s <sample>                      Sample for which to construct sample sheet and launch analysis. To be used instead of -r <readset> or -g <group>."
-    echo " -g <group>                       Sample group for which to construct sample sheet and launch analysis. To be used instead of -s <sample> or -r <readset>."
+    echo " -g <groups>                      Sample group(s) for which to construct sample sheet and launch analysis. To be used instead of -s <sample> or -r <readset>."
     exit 1                      
 }
 
@@ -29,7 +29,7 @@ while getopts 'hr::s::g:' OPTION; do
             sample="$OPTARG"
             ;;
         g)
-            group="$OPTARG"
+            groups+=("$OPTARG")
             ;;
         h)
             usage
@@ -41,7 +41,7 @@ while getopts 'hr::s::g:' OPTION; do
 done
 
 # mutually exclusive arguments
-if [[ "$sample" && "$group" ]]; then
+if [[ "$sample" && "$groups" ]]; then
     echo -e "ERROR: Arguments -r, -s and -g are mutually exclusive. Supply only one.\n"
     usage
 fi
@@ -52,13 +52,13 @@ if [[ "$readset" && "$sample" ]]; then
 fi
 
 # mutually exclusive arguments
-if [[ "$readset" && "$group" ]]; then
+if [[ "$readset" && "$groups" ]]; then
     echo -e "ERROR: Arguments -s and -g are mutually exclusive. Supply only one.\n"
     usage
 fi
 
 # mandatory arguments
-if [[ ! "$readset" && ! "$sample" && ! "$group" ]]; then
+if [[ ! "$readset" && ! "$sample" && ! "$groups" ]]; then
     echo -e "ERROR: Missing mandatory argument -r, -s or -g.\n"
     usage
 fi
@@ -76,53 +76,51 @@ if [[ "$readset" ]]; then
 
 if [[ "$sample" ]]; then
     # find group(s) for sample
-    group=`pt-cli --url-root https://project-tracking.c3g-app.dev-sd4h.ca/ --project MOH-Q sample_group list --sample_name $sample \
+    groups=`pt-cli --url-root https://project-tracking.c3g-app.dev-sd4h.ca/ --project MOH-Q sample_group list --sample_name $sample \
        | jq -r -c '.[] | select(.deleted == false and .deprecated == false) | .name'`
 
-### TO DO ###
-# what if more than one group returned?
-
 # check to see if oncoanalyser is currently running
-ret=$(~/MoH_Phase2_Automation/analysis/check_operations.py -g group 2>&1 || true)
-if [[ "$ret" != *\"decision\":\ \"GO\"* ]]; then 
-    echo "Oncoanalyser not yet launched for all readsets."
-else
-    echo "$ret"
-    echo "Not ready to launch oncoanalyser."
-    exit
-fi
+for group in groups; do
+    GROUP=$group
+    ret=$(~/MoH_Phase2_Automation/analysis/check_operations.py -g ${GROUP} 2>&1 || true)
+    if [[ "$ret" != *\"decision\":\ \"GO\"* ]]; then 
+        echo "Oncoanalyser not yet launched for all readsets of group ${GROUP}."
+    else
+        echo "$ret"
+        echo "Not ready to launch oncoanalyser for group ${GROUP}."
+        break
+    fi
 
-GROUP=$group
-ANALYSIS_DIR=${MOH_DIR}/${CASE}/${GROUP}
-mkdir -p ${ANALYSIS_DIR}/tmp
-ret=$(pt-cli --url-root http://127.0.0.1:5000 --project MOH-Q digest oncoanalyser_samplesheet --sample_group_name $group --endpoint c3g-data-repos 2>&1 || true)
-if [[ "$ret" == *WARNING* ]]; then 
-    echo $ret
-    echo "Not ready to launch oncoanalyser."
-    exit
-fi
+    ANALYSIS_DIR=${MOH_DIR}/${CASE}/${GROUP}
+    mkdir -p ${ANALYSIS_DIR}/tmp
+    ret=$(pt-cli --url-root http://127.0.0.1:5000 --project MOH-Q digest oncoanalyser_samplesheet --sample_group_name $group --endpoint c3g-data-repos 2>&1 || true)
+    if [[ "$ret" == *WARNING* ]]; then 
+        echo $ret
+        echo "Not ready to launch oncoanalyser for group ${GROUP}."
+        break
+    fi
 
-tmp_sheet=${ANALYSIS_DIR}/tmp/${GROUP}.samplesheet.csv
+    tmp_sheet=${ANALYSIS_DIR}/tmp/${GROUP}.samplesheet.csv
 
-if grep -q "tumor,dna" ${tmp_sheet} && grep -q "normal,dna" ${tmp_sheet}; then
-    echo "Ready to launch oncoanalyser."
-else
-    echo "Not ready to launch oncoanalyser."
-    exit
-fi
+    if grep -q "tumor,dna" ${tmp_sheet} && grep -q "normal,dna" ${tmp_sheet}; then
+        echo "Ready to launch oncoanalyser for group ${GROUP}."
+    else
+        echo "Not ready to launch oncoanalyser for group ${GROUP}."
+        break
+    fi
 
-TIMESTAMP=$(date +%FT%H.%M.%S)
-~/MoH_Phase2_Automation/analysis/create_samplesheet.sh ${NUCLEIC_ACID_TYPE} -g ${GROUP} -o ${ANALYSIS_DIR}/samplesheets/${TIMESTAMP}
+    TIMESTAMP=$(date +%FT%H.%M.%S)
+    ~/MoH_Phase2_Automation/analysis/create_samplesheet.sh ${NUCLEIC_ACID_TYPE} -g ${GROUP} -o ${ANALYSIS_DIR}/samplesheets/${TIMESTAMP}
 
-# create oncoanalyser submission script
-~/MoH_Phase2_Automation/analysis/create_oncoanalyser_submission.sh -g ${GROUP} -d ${ANALYSIS_DIR} -t ${TIMESTAMP}
+    # create oncoanalyser submission script
+    ~/MoH_Phase2_Automation/analysis/create_oncoanalyser_submission.sh -g ${GROUP} -d ${ANALYSIS_DIR} -t ${TIMESTAMP}
 
-ONCOANALYSER_JSON=${ANALYSIS_DIR}/${GROUP}.oncoanalyser.json
+    ONCOANALYSER_JSON=${ANALYSIS_DIR}/${GROUP}.oncoanalyser.json
 
-# add oncoanalyser launch json and ingest into DB to set operation to PENDING
-~/MoH_Phase2_Automation/analysis/oncoanalyser2json.sh -i ${ANALYSIS_DIR} -t ${TIMESTAMP} -o ${ONCOANALYSER_JSON}
-pt-cli --url-root https://project-tracking.c3g-app.dev-sd4h.ca/ --project MOH-Q ingest analysis --input-json ${ONCOANALYSER_JSON}
+    # add oncoanalyser launch json and ingest into DB to set operation to PENDING
+    ~/MoH_Phase2_Automation/analysis/oncoanalyser2json.sh -i ${ANALYSIS_DIR} -t ${TIMESTAMP} -o ${ONCOANALYSER_JSON}
+    pt-cli --url-root https://project-tracking.c3g-app.dev-sd4h.ca/ --project MOH-Q ingest analysis --input-json ${ONCOANALYSER_JSON}
 
-sbatch ${ANALYSIS_DIR}/${GROUP}.oncoanalyser_${TIMESTAMP}.submit && echo "Oncoanalyser launched for ${GROUP}."
-
+    sbatch ${ANALYSIS_DIR}/${GROUP}.oncoanalyser_${TIMESTAMP}.submit && echo "Oncoanalyser launched for ${GROUP}."
+done
 # do second ingest to set to running? Decide on trigger.
