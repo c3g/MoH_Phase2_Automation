@@ -85,7 +85,7 @@ if [[ "$sample" ]]; then
 # check to see if oncoanalyser is currently running
 ret=$(~/MoH_Phase2_Automation/analysis/check_operations.py -g group 2>&1 || true)
 if [[ "$ret" != *\"decision\":\ \"GO\"* ]]; then 
-    echo "Continue to samplesheet creation."
+    echo "Oncoanalyser not yet launched for all readsets."
 else
     echo "$ret"
     echo "Not ready to launch oncoanalyser."
