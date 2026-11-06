@@ -108,12 +108,12 @@ TIMESTAMP=$(date +%FT%H.%M.%S)
 # create oncoanalyser submission script
 ~/MoH_Phase2_Automation/analysis/create_oncoanalyser_submission.sh -g ${GROUP} -d ${ANALYSIS_DIR} -t ${TIMESTAMP}
 
-sbatch ${ANALYSIS_DIR}/${GROUP}.oncoanalyser_${TIMESTAMP}.submit
-
-echo "Oncoanalyser launched for ${GROUP}."
-
 ONCOANALYSER_JSON=${ANALYSIS_DIR}/${GROUP}.oncoanalyser.json
 
-# add oncoanalyser launch json and ingest into DB to set operation to RUNNING
+# add oncoanalyser launch json and ingest into DB to set operation to PENDING
 ~/MoH_Phase2_Automation/analysis/oncoanalyser2json.sh -i ${ANALYSIS_DIR} -t ${TIMESTAMP} -o ${ONCOANALYSER_JSON}
 pt-cli --url-root https://project-tracking.c3g-app.dev-sd4h.ca/ --project MOH-Q ingest analysis --input-json ${ONCOANALYSER_JSON}
+
+sbatch ${ANALYSIS_DIR}/${GROUP}.oncoanalyser_${TIMESTAMP}.submit && echo "Oncoanalyser launched for ${GROUP}."
+
+# do second ingest to set to running? Decide on trigger.
