@@ -429,9 +429,11 @@ def add_jobs(json_output, sample_id, readsets, jobs):
                 readset["job"].append(job)
 
 def set_db_flags(metrics):
-    """Make flags DB-safe: unknown flag: None, deliverable without a flag: UNFLAGGED_DELIVERABLE_FLAG.""" # ------------------------------------------------------confirm
+    """Make flags DB-safe: unknown flag -> None (warning), deliverable without a flag -> UNFLAGGED_DELIVERABLE_FLAG."""
     for m in metrics:
         if m["metric_flag"] not in ALLOWED_FLAGS:
+            if m["metric_flag"] is not None:   # None = no threshold.  anything else= unexpected
+                logger.warning(f"{m['metric_name']}: unknown flag {m['metric_flag']}, set to None")
             m["metric_flag"] = None
         if m["metric_deliverable"] and m["metric_flag"] is None:
             m["metric_flag"] = UNFLAGGED_DELIVERABLE_FLAG
