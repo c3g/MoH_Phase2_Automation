@@ -114,7 +114,7 @@ if [ $? -eq 0  ]; then
          -X POST \
          -d '{"readset_name": "'"$readset_name"'"}' \
          "https://jenkins.c3g-app.sd4h.ca/generic-webhook-trigger/invoke?token=7BM5klS2iGh0TmIY"
-    sleep 5
+    sleep 10
     done
 else
     echo "$task_id failed!"
