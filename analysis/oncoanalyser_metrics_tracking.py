@@ -481,9 +481,6 @@ def extract_qsee(group, tumour_sample, results_dir):
     # and we are already giving it qsee thresholds, which we can update manually
     # maybe need a fallback though in case qsee is missing or we're using older onco 
 
-
-    flags = {"PASS": "PASS", "WARN": "WARNING", "FAIL": "FAILED"} # to match genpipes
-
     qsee_file = os.path.join(results_dir, group, 'qsee', f'{tumour_sample}.qsee.status.tsv.gz')
 
     if not os.path.exists(qsee_file):
@@ -496,7 +493,7 @@ def extract_qsee(group, tumour_sample, results_dir):
             metric = {
                 "metric_name": row["FeatureName"].lower(),
                 "metric_value": row["FeatureValue"],
-                "metric_flag": flags.get(row["QcStatus"], row["QcStatus"]),
+                "metric_flag": status_flag(row["QcStatus"]),
                 "metric_deliverable": True
             }
             metrics.setdefault(row["SampleId"], []).append(metric) # normal and tumor have different SampleIds
@@ -533,25 +530,23 @@ def extract_purple(group, sample, results_dir):
 
     # metrics - for now: qc status (with flag), ploidy, sex_check (purity, contamination etc. come from QSEE)
     metrics = [
-        {"metric_name": "purple_qc_status", "metric_value": qc["QCStatus"], "metric_flag": purple_flag(qc["QCStatus"]), "metric_deliverable": True},
+        {"metric_name": "purple_qc_status", "metric_value": qc["QCStatus"], "metric_flag": status_flag(qc["QCStatus"]), "metric_deliverable": True},
         {"metric_name": "ploidy", "metric_value": purity_tsv["ploidy"], "metric_flag": None, "metric_deliverable": True},
         {"metric_name": "sex_check", "metric_value": f'{qc["AmberGender"]}/{qc["CobaltGender"]}', "metric_flag": None, "metric_deliverable": True},
     ]
     return metrics
 
 
-def purple_flag(qc_status): #------------------------IN PROGRESS
-    """
-    Flag from purples own QCStatus. Several problems are joined with commas,
-    """
-    parts = qc_status.split(',')
-    if any(part.startswith('FAIL') for part in parts):
+def status_flag(status):
+    """Tool QC status -> DB flag. Handles PASS, WARN*, FAIL* and comma-joined like PURPLE)."""
+    parts = status.split(',')
+    if any(p.startswith('FAIL') for p in parts):
         return "FAILED"
-    if any(part.startswith('WARN') for part in parts):
+    if any(p.startswith('WARN') for p in parts):
         return "WARNING"
-    if qc_status == "PASS":
+    if status == "PASS":
         return "PASS"
-    logger.warning(f"unknown PURPLE QCStatus: {qc_status}")
+    logger.warning(f"unknown QC status: {status}")
     return None
 
 
@@ -608,11 +603,6 @@ def extract_isofox(group, sample, results_dir):
     Return: list
     """
 
-    # todo: add flags 
-
-
-    flags = {"PASS": "PASS", "WARN": "WARNING", "FAIL": "FAILED"}  # to match genpipes??? 
-
     summary_file = os.path.join(results_dir, group, 'isofox', f'{sample}.isf.summary.tsv')
 
     if not os.path.exists(summary_file):
@@ -626,7 +616,7 @@ def extract_isofox(group, sample, results_dir):
     summary = dict(zip(header, values))
 
     metrics = [
-        {"metric_name": "isofox_qc_status", "metric_value": summary["QcStatus"], "metric_flag": flags.get(summary["QcStatus"], summary["QcStatus"]), "metric_deliverable": True},
+        {"metric_name": "isofox_qc_status", "metric_value": summary["QcStatus"], "metric_flag": status_flag(summary["QcStatus"]), "metric_deliverable": True},
         {"metric_name": "total_fragments", "metric_value": summary["TotalFragments"], "metric_flag": None, "metric_deliverable": True},
         {"metric_name": "duplicate_fragments", "metric_value": summary["DuplicateFragments"], "metric_flag": None, "metric_deliverable": True},
         {"metric_name": "spliced_fragment_perc", "metric_value": summary["SplicedFragmentPerc"], "metric_flag": None, "metric_deliverable": True},
