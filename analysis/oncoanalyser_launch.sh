@@ -11,7 +11,7 @@
 THIS_SCRIPT=$(basename "$0")
 
 usage() {
-    echo "script usage: $THIS_SCRIPT -h [-r readset] [-s sample] [-g group]"
+    echo "script usage: $THIS_SCRIPT -h [-r readset] [-s sample] [-g groups]"
     echo "Usage:"
     echo " -h                               Display this help message."
     echo " -r <readset>                     Readset for which to construct sample sheet and launch analysis. To be used instead of -s <sample> or -g <group>."
@@ -73,17 +73,17 @@ if [[ "$readset" ]]; then
     | jq -c '.DB_ACTION_OUTPUT[] | .id'`
     sample=`pt-cli --url-root https://project-tracking.c3g-app.dev-sd4h.ca/ --project MOH-Q route "/project/MOH-Q/readsets/${READSET_ID}/samples" \
     | jq -r -c '.DB_ACTION_OUTPUT[] | .name'`
-
+fi
 if [[ "$sample" ]]; then
     # find group(s) for sample
     groups=`pt-cli --url-root https://project-tracking.c3g-app.dev-sd4h.ca/ --project MOH-Q sample_group list --sample_name $sample \
        | jq -r -c '.[] | select(.deleted == false and .deprecated == false) | .name'`
-
+fi
 # check to see if oncoanalyser is currently running
 for group in groups; do
     GROUP=$group
     ret=$(~/MoH_Phase2_Automation/analysis/check_operations.py -g ${GROUP} 2>&1 || true)
-    if [[ "$ret" != *\"decision\":\ \"GO\"* ]]; then 
+    if [[ "$ret" == *\"decision\":\ \"GO\"* ]]; then 
         echo "Oncoanalyser not yet launched for all readsets of group ${GROUP}."
     else
         echo "$ret"
@@ -93,7 +93,7 @@ for group in groups; do
 
     ANALYSIS_DIR=${MOH_DIR}/${CASE}/${GROUP}
     mkdir -p ${ANALYSIS_DIR}/tmp
-    ret=$(pt-cli --url-root http://127.0.0.1:5000 --project MOH-Q digest oncoanalyser_samplesheet --sample_group_name $group --endpoint c3g-data-repos 2>&1 || true)
+    ret=$(pt-cli --url-root https://project-tracking.c3g-app.dev-sd4h.ca/ --project MOH-Q digest oncoanalyser_samplesheet --sample_group_name $group --endpoint c3g-data-repos ${ANALYSIS_DIR}/tmp 2>&1 || true)
     if [[ "$ret" == *WARNING* ]]; then 
         echo $ret
         echo "Not ready to launch oncoanalyser for group ${GROUP}."
