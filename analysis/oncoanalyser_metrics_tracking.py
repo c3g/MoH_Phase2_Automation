@@ -303,10 +303,23 @@ def parse_duration(text): #needed because onco history doesnt show end time, so 
     return timedelta(seconds=seconds)
 
 
+def first_task_start(results_dir):
+    """Earliest task start over all launches traces, which we use to set the start time of the head job"""
+    starts = []
+    for trace in glob.glob(os.path.join(results_dir, 'pipeline_info', 'execution_trace_*.txt')):
+        with open(trace, encoding='utf-8') as f:
+            for row in csv.DictReader(f, delimiter='\t'):
+                if row.get("name"):
+                    start = task_times(row)[0]
+                    if start:
+                        starts.append(start)
+    return min(starts, default=None)
+
+
 def head_job(run_dir, group): # -------for now , parsed from history
     """
-    Head job oncoanalyser.<group> (same name as oncoanalyser2json.py), from .nextflow/history. 
-    Resumes of the same command count as one run: start = first of them, stop = end of the last one.
+    Head job oncoanalyser.<group> (same name as oncoanalyser2json.py).
+    start = first task that ran, over all launches (traces); status + stop = latest launch (.nextflow/history).
     """
     job = {"job_name": f"oncoanalyser.{group}", "job_start": None, "job_stop": None, "job_status": "PENDING"}
 
@@ -320,8 +333,9 @@ def head_job(run_dir, group): # -------for now , parsed from history
     if not launches:
         return job
 
-    last = launches[-1] # last line is always the latest run
-    job["job_start"] = last[0][:19]
+    first, last = launches[0], launches[-1]
+    # start = first task that launched (if not, first ever launch from hist)
+    job["job_start"] = first_task_start(os.path.join(run_dir, 'results')) or first[0][:19]
     #these next lines would be useful if we want the start to be the first try of this run
     # same_run = [launch for launch in launches if launch[6] == last[6]]
     #job["job_start"] = same_run[0][0][:19]
