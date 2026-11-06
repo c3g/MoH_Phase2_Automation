@@ -6,7 +6,7 @@ import subprocess
 import urllib.parse
 
 class PtCli:
-    def __init__(self, project="MOH-Q", url_root="http://127.0.0.1:5000"):
+    def __init__(self, project="MOH-Q", url_root="https://project-tracking.c3g-app.dev-sd4h.ca/"):
         self.project = project
         self.base = ["pt-cli", "-q", "--project", project] + (["--url-root", url_root] if url_root else [])
 
