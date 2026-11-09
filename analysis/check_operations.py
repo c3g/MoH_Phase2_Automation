@@ -45,3 +45,11 @@ def decide_group(pt, group_name):
 
 def main():
     parser = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
+    parser.add_argument("-g", "--group", required=True, help="Group to check")
+    args = parser.parse_args()
+
+    pt = PtCli()
+    print(json.dumps(decide_group(pt, args.group)))
+
+if __name__ == "__main__":
+    main()
