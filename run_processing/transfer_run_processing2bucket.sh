@@ -98,7 +98,7 @@ if [ $? -eq 0  ]; then
     TRANSFER_JSON="$TRANSFER_JSON_DIR/${LISTFILE/.list/.json}"
     module unload mugqic/globus-cli/3.24.0
     timestamp_end=$(date "+%Y-%m-%dT%H.%M.%S")
-    source ~/project-tracking-cli/.venv/bin/activate
+    source ~/project_tracking_cli/.venv/bin/activate
     ~/MoH_Phase2_Automation/run_processing/transfer2json.py --input $TEMP/$LISTFILE_FULLPATH --source "abacus" --destination $destination --output $TRANSFER_JSON --operation_cmd_line "globus transfer --sync-level mtime --jmespath 'task_id' --format=UNIX --submission-id $sub_id --label $runfolder --batch $TEMP/$LISTFILE $ABA_EP $DEST_EP" --start $timestamp_start --stop $timestamp_end
     echo "Ingesting transfer $TRANSFER_JSON..."
     pt-cli --url-root https://project-tracking.c3g-app.dev-sd4h.ca/ --project MOH-Q ingest transfer --input-json $TRANSFER_JSON
