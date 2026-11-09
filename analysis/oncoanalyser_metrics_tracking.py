@@ -33,7 +33,7 @@ HISTORY_TO_DB_STATUS = {"OK": "COMPLETED", "ERR": "FAILED", "-": "RUNNING"} # fo
 # some results are per sample (alignments etc) and some are pair-level (amber etc)
 # some results are under flat folder and some are under subfolders named after the sample (e.g. bamtools)
 # process -> (which samples get a job, its results under results/<group>/ ; {s} = the job's sample)
-N, T, R = "normal_dna", "tumor_dna", "tumor_rna"
+N, T, R = "normal", "tumor", "rna"   # same words as the -t/--sample_type argument
 PROCESSES = { # processes incldue all the unique job names in the execution traces
     # alignment
     "FASTP_SPLIT":          ((N, T), None),
@@ -167,65 +167,29 @@ def find_samplesheet(run_dir, group):
 
 
 
-def read_samplesheet(samplesheet):
-    """
-    Sample id + readsets (library_id in the info column) of each sample.
-    Return: {"normal_dna": {"sample_id", "readsets"}, "tumor_dna": {...}, "tumor_rna": {...} or None}
-    """
-    roles = { # all accepted combinations for sample_id
-    ("normal", "dna"): "normal_dna",
-    ("tumor", "dna"): "tumor_dna",
-    ("tumor", "rna"): "tumor_rna",
-    }
-    samples = {"normal_dna": None, "tumor_dna": None, "tumor_rna": None}
-
+def run_has_rna(samplesheet):
+    """True if the run has a tumor RNA sample (RNA-only processes only run then)."""
     with open(samplesheet, encoding='utf-8') as f:
-        for row in csv.DictReader(f):
-            role = roles.get((row["sample_type"], row["sequence_type"]))
-            if role is None:
-                continue
-
-            info = dict(part.split(":", 1) for part in row["info"].split(";") if ":" in part)
-            readset = info.get("library_id")
-            if not readset:
-                logger.error(f"no library_id for {row['sample_id']}: {row['info']}")
-                sys.exit(1)
-
-            #collect all readsets for each sample_id
-            if samples[role] is None:
-                samples[role] = {"sample_id": row["sample_id"], "readsets": []}
-            elif samples[role]["sample_id"] != row["sample_id"]:
-                logger.error(f"two {role} samples: {samples[role]['sample_id']}, {row['sample_id']}")
-                sys.exit(1)
-
-            if readset not in samples[role]["readsets"]:
-                samples[role]["readsets"].append(readset)
-
-    if not samples["normal_dna"] or not samples["tumor_dna"]:
-        logger.error(f"need a normal and a tumor DNA sample: {samplesheet}")
-        sys.exit(1)
-
-    return samples
+        return any(row["sequence_type"] == "rna" for row in csv.DictReader(f))
 
 
 def main():
     """ Main """
     args = parse_arguments()
- 
-    # the run folder is named after the group (launch script: ${MOH_DIR}/${CASE}/${GROUP})
-    # one group = one tumor+ normal
-    group = os.path.basename(os.path.normpath(args.input))
-    samplesheet = find_samplesheet(args.input, group)
-    results_dir = os.path.join(args.input, "results")
-    jsonify_oncoanalyser_metrics(args.input, group, samplesheet, results_dir, args.json, args.sample, args.readset, args.files)
 
-def jsonify_oncoanalyser_metrics(run_dir, group, samplesheet, results_dir, output_json, sample_filter=None, readset_filter=None, with_files=False): # -------------------------------------comments to be cleaned up at the end
+    # the run folder is named after the group (launch script: ${MOH_DIR}/${CASE}/${GROUP})
+    group = os.path.basename(os.path.normpath(args.input))
+    results_dir = os.path.join(args.input, "results")
+    jsonify_oncoanalyser_metrics(args.input, group, results_dir, args.json,
+                                 args.readset, args.sample, args.sample_type, args.tumor_sample)
+
+def jsonify_oncoanalyser_metrics(run_dir, group, results_dir, output_json, readset, sample_id, role, tumor_dna):
     """
-    Update the project tracking json of the oncoanalyser run (at launch, mid-run or after it ends):
-    - every sample + readset of the samplesheet
+    Update ONE readset of the project tracking json (at launch, mid-run or after the run):
     - the head job oncoanalyser.<group> (status + times from .nextflow/history)
-    - one job per process per sample (status + times from the latest Nextflow trace)
+    - one job per process this sample owns (status + times from the latest Nextflow trace)
     - QC metrics on the qsee, bamtools, purple, isofox jobs
+    - result files (+ md5), once the run is COMPLETED
     - operation_status = head job status
     """
     # Open the json made at launch (oncoanalyser2json.py)
@@ -234,71 +198,51 @@ def jsonify_oncoanalyser_metrics(run_dir, group, samplesheet, results_dir, outpu
         logger.error("No launch json to add metrics to - stopping.")
         sys.exit(1)
 
-    # Samples (sample-ids) of the run + their readsets (normal/tumor DNA, tumor RNA if exists)
-    samples = read_samplesheet(samplesheet)
-    normal_dna = samples["normal_dna"]["sample_id"]
-    tumor_dna = samples["tumor_dna"]["sample_id"]
-    tumor_rna = samples["tumor_rna"]["sample_id"] if samples["tumor_rna"] else None
-
-    readsets = {s["sample_id"]: s["readsets"] for s in samples.values() if s}
+    has_rna = run_has_rna(find_samplesheet(run_dir, group))
     head = head_job(run_dir, group)        # updates the head job made at launch
     trace_rows = read_traces(results_dir)
 
-    # add files only if job successful
-    add_files = with_files and head["job_status"] == "COMPLETED"
-    if with_files and not add_files:
-        logger.warning("--files skipped: run not finished (head job not COMPLETED)")
+    # files only once the whole run is COMPLETED (mid-run they may be half-written)
+    add_files = head["job_status"] == "COMPLETED"
 
-
-    # 1. one job per process per sample (status + times from the trace)
-    jobs = {sample_id: {} for sample_id in readsets}   # make an empty job for each sample
+    # 1. one job per process this sample owns (status + times from the trace; PENDING if not run yet)
+    jobs = {}
     for process, (owners, _) in PROCESSES.items():
-        if process in RNA_PROCESSES and not tumor_rna: # dont make rna jobs if they dont exist
+        if role not in owners or (process in RNA_PROCESSES and not has_rna):
             continue
-        for role in owners:
-            if samples[role]:
-                sample_id = samples[role]["sample_id"]
-                 # make job for every process in the PROCESSES list - if not started will be pending
-                job = make_job(process, sample_id, group, trace_rows)   # status + times from the trace
-                if add_files: 
-                    job["file"] = job_files(process, sample_id, group, results_dir)  # list of {file_name, location_uri, md5...}
-                jobs[sample_id][process] = job
+        job = make_job(process, sample_id, group, trace_rows)
+        if add_files:
+            job["file"] = job_files(process, sample_id, group, results_dir)  # list of {file_name, location_uri, md5...}
+        jobs[process] = job
 
-    # 2. add metrcis to jobs that have them
-    # only read a tool's QC files once its job is COMPLETED
-    def done(sample_id, process):
-        return jobs[sample_id].get(process, {}).get("job_status") == "COMPLETED"
+    # 2. metrics of this sample, read only once the tool's job is COMPLETED
+    def done(process):
+        return make_job(process, sample_id, group, trace_rows)["job_status"] == "COMPLETED"
 
-    qsee = extract_qsee(group, tumor_dna, results_dir) if done(tumor_dna, "QSEE") else {}   # QSEE runs on the tumor, has normal + tumor rows
-    metrics = [
-        (normal_dna, "QSEE",     qsee.get(normal_dna, [])),
-        (normal_dna, "BAMTOOLS", extract_bamtools(group, normal_dna, results_dir) if done(normal_dna, "BAMTOOLS") else []),
-        (tumor_dna,  "QSEE",     qsee.get(tumor_dna, [])),
-        (tumor_dna,  "BAMTOOLS", extract_bamtools(group, tumor_dna, results_dir) if done(tumor_dna, "BAMTOOLS") else []),
-        (tumor_dna,  "PURPLE",   extract_purple(group, tumor_dna, results_dir) if done(tumor_dna, "PURPLE") else []),
-    ]
-    if tumor_rna:
-        # IMP: ISOFOX files are named after the tumor DNA
-        metrics.append((tumor_rna, "ISOFOX", extract_isofox(group, tumor_dna, results_dir) if done(tumor_rna, "ISOFOX") else []))
+    metrics = {}
+    if role in (N, T):
+        # QSEE runs once on the pair: one file named after the tumor, with normal + tumor rows
+        if done("QSEE"):
+            metrics["QSEE"] = extract_qsee(group, tumor_dna, results_dir).get(sample_id, [])
+        if done("BAMTOOLS"):
+            metrics["BAMTOOLS"] = extract_bamtools(group, sample_id, results_dir)
+    if role == T and done("PURPLE"):
+        metrics["PURPLE"] = extract_purple(group, sample_id, results_dir)
+    if role == R and done("ISOFOX"):
+        metrics["ISOFOX"] = extract_isofox(group, tumor_dna, results_dir)   # files named after the tumor DNA
 
-    for sample_id, process, sample_metrics in metrics:
+    for process, sample_metrics in metrics.items():
         if not sample_metrics:
             continue
-        # QSEE runs on the tumor BUT THE NORMAL ALSO GET QSEE METRICS< SO HERE WE ADD MAKE_JOB AS WELL
-        job = jobs[sample_id].get(process) or make_job(process, sample_id, group, trace_rows) 
-        job["metric"] = set_db_flags(sample_metrics) # dds metrics to the jobs 
-        jobs[sample_id][process] = job #put job back in the sample's metrics list
+        # the normal has no QSEE job of its own (QSEE belongs to the tumor): made here for its metrics
+        job = jobs.get(process) or make_job(process, sample_id, group, trace_rows)
+        job["metric"] = set_db_flags(sample_metrics)
+        jobs[process] = job
 
-    # 3.  the json (optional sample/readset filters)
-    for sample_id, sample_jobs in jobs.items():
-        if sample_filter and sample_id not in sample_filter: # if there is sample filter and the sample is not in it, skip it
-            continue 
-        sample_readsets = [r for r in readsets[sample_id] if not readset_filter or r in readset_filter] # keep only readsets that are in the filter if any
-        if not sample_readsets:
-            continue
-        add_jobs(json_output, sample_id, sample_readsets, [head] + list(sample_jobs.values())) # put the job in the json under every readset of the sample
+    # 3. into the json, under this readset
+    add_jobs(json_output, sample_id, [readset], [head] + list(jobs.values()))
 
-    json_output["operation_status"] = head["job_status"]   # operation status = head job status -----------------------------------------------------------------------------------confirm
+    json_output["operation_status"] = head["job_status"]   # operation status = head job status
     save_json_file(output_json, json_output)
 
 def parse_duration(text): #needed because onco history doesnt show end time, so we calculate it 
