@@ -1,4 +1,3 @@
-
 #!/usr/bin/env bash
 #SBATCH --job-name=oncoanalyser_delivery
 #SBATCH --time=12:00:00

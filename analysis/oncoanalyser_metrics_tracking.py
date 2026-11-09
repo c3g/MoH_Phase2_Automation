@@ -103,29 +103,33 @@ def parse_arguments():
         help="Json to update in place (made by oncoanalyser2json.py)."
         )
     
-    parser.add_argument( #optional
-        '-f',
-        '--files',
-        action='store_true',
-        help="Also add each job's result files with md5. Only for finished runs."
-        )
-    
-    parser.add_argument( #optional
-        '-s',
-        '--sample',
-        nargs='+',
-        default=None,
-        help="Only update these sample(s) (sample_id). Default: all samples of the samplesheet."
-        )
-    parser.add_argument( #optional
+    parser.add_argument(
         '-r',
         '--readset',
-        nargs='+',
-        default=None,
-        help="Only update these readset(s). Default: all readsets of each sample."
+        required=True,
+        help="Readset to update (readset_name)."
+        )
+
+    parser.add_argument(
+        '-s',
+        '--sample',
+        required=True,
+        help="sample_id of that readset (samplesheet sample_id)."
+        )
+    parser.add_argument(
+        '-t',
+        '--sample_type',
+        required=True,
+        choices=["normal", "tumor", "rna"],
+        help="Role of the sample: normal (DNA), tumor (DNA) or rna (tumor RNA)."
+        )
+    parser.add_argument(
+        '-T',
+        '--tumor_sample',
+        required=True,
+        help="sample_id of the tumor DNA of the run (QSEE and ISOFOX files are named after it)."
         )
     return parser.parse_args()
-
 
 def load_json_file(path):
     """Load a json file. Return None if missing"""
