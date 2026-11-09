@@ -43,7 +43,7 @@ DEST_EP="2cef98ab-568d-4136-9e0c-8391215dd929"
 DEST_LOC="MOH-Q"
 destination="c3g-data-repos"
 # Abacus Endpoint
-ABA_EP='fb9e89bd-7bfb-4842-9c4d-9190eb946160'
+ABA_EP="01389a74-7832-499b-8226-c6ff10d69731"
 SRC_BASE_PATH="/nb/Research/freezeman-processing"
 
 runfolder=$(jq -r '.run_name' "$run_processing_json")
