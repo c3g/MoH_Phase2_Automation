@@ -261,17 +261,21 @@ def jsonify_oncoanalyser_metrics(run_dir, group, samplesheet, results_dir, outpu
                 jobs[sample_id][process] = job
 
     # 2. add metrcis to jobs that have them
-    qsee = extract_qsee(group, tumor_dna, results_dir)
+    # only read a tool's QC files once its job is COMPLETED
+    def done(sample_id, process):
+        return jobs[sample_id].get(process, {}).get("job_status") == "COMPLETED"
+
+    qsee = extract_qsee(group, tumor_dna, results_dir) if done(tumor_dna, "QSEE") else {}   # QSEE runs on the tumor, has normal + tumor rows
     metrics = [
         (normal_dna, "QSEE",     qsee.get(normal_dna, [])),
-        (normal_dna, "BAMTOOLS", extract_bamtools(group, normal_dna, results_dir)),
+        (normal_dna, "BAMTOOLS", extract_bamtools(group, normal_dna, results_dir) if done(normal_dna, "BAMTOOLS") else []),
         (tumor_dna,  "QSEE",     qsee.get(tumor_dna, [])),
-        (tumor_dna,  "BAMTOOLS", extract_bamtools(group, tumor_dna, results_dir)),
-        (tumor_dna,  "PURPLE",   extract_purple(group, tumor_dna, results_dir)),
+        (tumor_dna,  "BAMTOOLS", extract_bamtools(group, tumor_dna, results_dir) if done(tumor_dna, "BAMTOOLS") else []),
+        (tumor_dna,  "PURPLE",   extract_purple(group, tumor_dna, results_dir) if done(tumor_dna, "PURPLE") else []),
     ]
     if tumor_rna:
         # IMP: ISOFOX files are named after the tumor DNA
-        metrics.append((tumor_rna, "ISOFOX", extract_isofox(group, tumor_dna, results_dir)))
+        metrics.append((tumor_rna, "ISOFOX", extract_isofox(group, tumor_dna, results_dir) if done(tumor_rna, "ISOFOX") else []))
 
     for sample_id, process, sample_metrics in metrics:
         if not sample_metrics:
