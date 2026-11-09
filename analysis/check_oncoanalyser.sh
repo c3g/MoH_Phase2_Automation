@@ -27,7 +27,11 @@ while getopts 'hd:g:' OPTION; do
 done
 [[ "$run_dir" && "$group" ]] || usage
 
-samplesheet=$run_dir/$group.samplesheet.csv
+# newest samplesheet, else old locations
+samplesheet=$(ls -1 "$run_dir"/samplesheets/*/"$group".samplesheet.csv 2>/dev/null | sort | tail -1)
+[ -z "$samplesheet" ] && samplesheet=$run_dir/$group.samplesheet.csv
+[ -f "$samplesheet" ] || samplesheet=$run_dir/samplesheet.csv
+
 results=$run_dir/results/$group
 log=$run_dir/.nextflow.log
 
