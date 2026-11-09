@@ -107,6 +107,7 @@ def jsonify_run_processing(input_run_folder, fms_json, lanes_json, output, lanes
         samples (list): List of samples to consider.
         nucleic_acid_type (str): Nucleic Acid type to consider.
     """
+    os.environ["SSL_CERT_FILE"] = "/sb/programs/itgenome/cabundle/fullbundle.pem"
     readset_dict = {}
     sample_dict = {}
     json_output = {
