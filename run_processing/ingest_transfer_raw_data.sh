@@ -61,28 +61,33 @@ export MUGQIC_INSTALL_HOME=/cvmfs/soft.mugqic/CentOS6
 module use "$MUGQIC_INSTALL_HOME/modulefiles"
 
 ##################################################
-# Initialization
-module purge
-source ~/project_tracking_cli/.venv/bin/activate
 
 ## Prepare run list
-folder_prefix=/nb/Research/freezeman-processing
-input=$(find "$folder_prefix"/*/*/ -maxdepth 1 -type d -name "$runfolder")
+#folder_prefix=/nb/Research/freezeman-processing
+folder_prefix=/home/mjaniak/projects/mjaniak/MOH_Phase2
+#input=$(find "$folder_prefix"/*/*/ -maxdepth 1 -type d -name "$runfolder")
+input=$(find "$folder_prefix"/ -maxdepth 1 -type d -name "$runfolder")
 echo "-> Processing $runfolder..."
 
 TIMESTAMP=$(date +%FT%H.%M.%S)
 
 if [ -s "$input"  ]; then
-      run_processing_json=$path/$runfolder.json
-    if [ -z "$nucleic_acid_type"  ]; then
+    # TEMP for testing, change for prod
+    run_processing_json=/home/mjaniak/projects/mjaniak/MOH_Phase2/TEMP/$runfolder.json
+    if [ -n "$nucleic_acid_type"  ]; then
         run_processing2json_args="${run_processing2json_args} --nucleic_acid_type ${nucleic_acid_type}"                  
+    fi
     
+    module purge && module load mugqic/python/3.10.4
+    export SSL_CERT_FILE=/sb/programs/itgenome/cabundle/fullbundle.pem
     ~/MoH_Phase2_Automation/run_processing/run_processing2json.py $run_processing2json_args --input $input --output $run_processing_json
+    module unload mugqic/python/3.10.4
 
+    source ~/project_tracking_cli/.venv/bin/activate
     ret="$(pt-cli --url-root https://project-tracking.c3g-app.dev-sd4h.ca/ --project MOH-Q ingest run_processing --input-json $run_processing_json 2>&1 || true)"
     echo -e "$ret" | tee "${run_processing_json/.json/_${TIMESTAMP}_run_processing_ingestion.log}"
-    if ! [[ $ret == *"has to be unique"*  ]] && [[ $ret == *"BadRequestError"*  ]]; then
-        echo "Run ${$runfolder} already ingested, proceeding to transfer of lane(s) ${lane}."
+    if [[ $ret == *"has to be unique"*  ]] && [[ $ret == *"BadRequestError"*  ]]; then
+        echo "Run $runfolder already ingested, proceeding to transfer of lane(s) ${lane}."
     fi
 else
     echo "--> ERROR: Missing folder $folder_prefix/*/*/$runfolder"
