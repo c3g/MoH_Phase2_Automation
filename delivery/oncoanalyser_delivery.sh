@@ -76,10 +76,13 @@ DEST_PATH="$DEST_LOC/$institution/$cohort/$specimen/$group/results"
 # List + json of the delivery, in the run's tmp/ (cleaned by a cron job after days)
 TIMESTAMP=$(date +%FT%H.%M.%S)
 LISTFILE="$run_dir/tmp/${group}_${TIMESTAMP}_${destination}_delivery.list"
+LISTFILE_FULLPATH="$run_dir/tmp/${group}_${TIMESTAMP}_${destination}_delivery_fullpath.list"   # for delivery2json.py: <src> <dest>, full path
 DELIVERY_JSON="$run_dir/tmp/${group}_${TIMESTAMP}_${destination}_delivery.json"
 timestamp_start=$(date "+%Y-%m-%dT%H.%M.%S")
 # One line for the whole results folder
-echo "--recursive ${src#"$SRC_BASE_PATH"} $DEST_PATH" > "$LISTFILE"
+echo "--recursive ${src#"$SRC_BASE_PATH"} $DEST_PATH" > "$LISTFILE" #for globus
+echo "$src $DEST_PATH" > "$LISTFILE_FULLPATH"         # for delivery2json.py
+
 
 # Load globus module
 module use /cvmfs/soft.mugqic/CentOS6/modulefiles
@@ -107,6 +110,6 @@ module unload mugqic/globus-cli/3.24.0
 timestamp_end=$(date "+%Y-%m-%dT%H.%M.%S")
 
 # Delivery json -> DB
-~/MoH_Phase2_Automation/delivery/delivery2json.py --input "$LISTFILE" --base_path "$SRC_BASE_PATH" --source $SRC_PLATFORM --destination $destination --output "$DELIVERY_JSON" --operation_cmd_line "globus transfer --sync-level mtime --jmespath 'task_id' --format=UNIX --submission-id $sub_id --label $group --batch $LISTFILE $SRC_EP $DEST_EP" --start $timestamp_start --stop $timestamp_end
+~/MoH_Phase2_Automation/delivery/delivery2json.py --input "$LISTFILE_FULLPATH" --source $SRC_PLATFORM --destination $destination --output "$DELIVERY_JSON" --operation_cmd_line "globus transfer --sync-level mtime --jmespath 'task_id' --format=UNIX --submission-id $sub_id --label $group --batch $LISTFILE $SRC_EP $DEST_EP" --start $timestamp_start --stop $timestamp_end
 echo "Ingesting delivery $DELIVERY_JSON..."
 pt-cli --url-root https://project-tracking.c3g-app.dev-sd4h.ca/ --project MOH-Q ingest delivery --input-json "$DELIVERY_JSON" --no-delete
