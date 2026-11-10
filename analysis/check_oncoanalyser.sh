@@ -14,10 +14,10 @@
 
 
 usage() {
-  echo "Usage: $(basename "$0") -d <analysis_dir> -g <group>"
+  echo "Usage: $(basename "$0") -d <analysis_dir> [-g <group>]   (default group: run folder name)"
   exit 1
 }
-# Read the options: -d run folder, -g group (both required)
+# Read the options: -d run folder (required), -g group (optional)
 while getopts 'hd:g:' OPTION; do
   case "$OPTION" in
     d) run_dir="$OPTARG" ;;
@@ -25,7 +25,8 @@ while getopts 'hd:g:' OPTION; do
     *) usage ;;
   esac
 done
-[[ "$run_dir" && "$group" ]] || usage
+[[ "$run_dir" ]] || usage
+group=${group:-$(basename "$run_dir")}   # default: run folder name
 
 # newest samplesheet, else old locations
 samplesheet=$(ls -1 "$run_dir"/samplesheets/*/"$group".samplesheet.csv 2>/dev/null | sort | tail -1)
