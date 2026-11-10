@@ -40,7 +40,7 @@ SRC_PLATFORM="cardinal"
 SRC_EP="ee0ec49b-7bf7-4b25-9030-2e19c03476ca" # from MoH1 globus_collections.json
 SRC_BASE_PATH="/project/60007/MOH_PHASE2"
 
-# Destination: the bucket (same as phase 2 raw data)
+# Destination: the bucket
 case "$destination" in
     c3g-data-repos)
         DEST_EP="2cef98ab-568d-4136-9e0c-8391215dd929"
@@ -61,9 +61,9 @@ if [ ! -d "$src" ] || [ ! -f "$analysis_json" ]; then
     echo "ERROR: $src or $analysis_json not found."
     exit 1
 fi
-# Globus needs the path inside the collection
-if [[ "$src" != "$SRC_BASE_PATH"/* ]]; then
-    echo "ERROR: $src is not under the Globus collection base path $SRC_BASE_PATH."
+
+if [[ "$src" != "$SRC_BASE_PATH"/* ]]; then #make sure rundir path starts with base path
+    echo "ERROR: $src not under the Globus collection base path $SRC_BASE_PATH."
     exit 1
 fi
 
