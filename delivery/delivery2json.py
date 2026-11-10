@@ -54,7 +54,6 @@ def _append_file(json_output, readset_name, src_location_uri, dest_location_uri)
     json_output["readset"].append(
             {
                 "readset_name": readset_name,
-                "readset_state": "VALID",
                 "file": [
                     {
                         "src_location_uri": src_location_uri,
@@ -83,18 +82,27 @@ def jsonify_delivery_transfer(batch_file, source, destination, delivery_json, ou
             line = raw_line.strip()
 
             fields = line.split()
-            if len(fields) < 3:
+            if len(fields) < 2:
                 continue # malformed line
 
-            readset = fields[0]
-            src_path = fields[1]
-            dest_path = fields[2]
-
+            src_path = fields[0]
+            dest_path = fields[1]
+            
             # Build URIs once
             src_location_uri = f"{source}://{src_path}"
             dest_location_uri = f"{destination}://{dest_path.strip()}"
 
-            _append_file(json_output, readset, src_location_uri, dest_location_uri)
+            run_dir = os.path.dirname(os.path.dirname(src_path))
+            group = os.path.basename(os.path.dirname(run_dir))
+
+            samplesheet_candidates = glob.glob(os.path.join(run_dir, "samplesheets", "*", f"{group}.samplesheet.csv"))
+            samplesheet_main = max(samplesheet_candidates, key=os.path.getmtime)
+            if not samplesheet_main:
+                raise FileNotFoundError(f"No main samplesheet found in folder {args.input}")
+            samples = parse_samplesheet(samplesheet_main)
+
+            for sample, readsets in samples.items():
+                _append_file(json_output, readset, src_location_uri, dest_location_uri)
             
     with open(output, 'w', encoding='utf-8') as file:
         json.dump(json_output, file, ensure_ascii=False, indent=4)
