@@ -54,7 +54,7 @@ esac
 
 # Run folder
 run_dir=$(realpath "$run_dir")
-src=$run_dir/results/$group
+src=$run_dir/results
 analysis_json=$run_dir/$group.oncoanalyser.json
 
 if [ ! -d "$src" ] || [ ! -f "$analysis_json" ]; then
