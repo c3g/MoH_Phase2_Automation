@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 
-# Deliver results/<group>/ of one oncoanalyser run to the bucket with Globus
+# Deliver results/ of one oncoanalyser run to the bucket with Globus
 # using Globus sync 
 # Only called once the run is COMPLETED
 
@@ -13,7 +13,7 @@ usage() {
     echo "script usage: $THIS_SCRIPT -h -i <run_dir> -g <group> [-d <destination>]"
     echo "Usage:"
     echo " -h                  Display this help message."
-    echo " -i <run_dir>        Run folder of the analysis (holds results/<group>/ and <group>.oncoanalyser.json)."
+    echo " -i <run_dir>        Run folder of the analysis (holds results/ and <group>.oncoanalyser.json)."
     echo " -g <group>          Group to deliver."
     echo " -d <destination>    Destination of the delivery (Default: c3g-data-repos)."
     exit 1
@@ -55,12 +55,6 @@ esac
 # Run folder
 run_dir=$(realpath "$run_dir")
 src=$run_dir/results
-analysis_json=$run_dir/$group.oncoanalyser.json
-
-if [ ! -d "$src" ] || [ ! -f "$analysis_json" ]; then
-    echo "ERROR: $src or $analysis_json not found."
-    exit 1
-fi
 
 if [[ "$src" != "$SRC_BASE_PATH"/* ]]; then #make sure rundir path starts with base path
     echo "ERROR: $src not under the Globus collection base path $SRC_BASE_PATH."
@@ -79,4 +73,40 @@ if [ -z "$institution" ] || [ "$cohort" = "null" ] || [ "$institution" = "null" 
 fi
 DEST_PATH="$DEST_LOC/$institution/$cohort/$specimen/$group/results"
 
-# TO ADD: list and globus transfer and json
+ 
+# List + json of the delivery, in the run's tmp/ (cleaned by a cron job after days)
+TIMESTAMP=$(date +%FT%H.%M.%S)
+LISTFILE="$run_dir/tmp/${group}_${TIMESTAMP}_${destination}_delivery.list"
+DELIVERY_JSON="$run_dir/tmp/${group}_${TIMESTAMP}_${destination}_delivery.json"
+timestamp_start=$(date "+%Y-%m-%d %H:%M:%S")
+ 
+# One line for the whole results folder
+echo "--recursive ${src#"$SRC_BASE_PATH"} $DEST_PATH" > "$LISTFILE"
+ 
+# Load globus module
+module use /cvmfs/soft.mugqic/CentOS6/modulefiles
+module load mugqic/globus-cli/3.24.0
+
+ENV_DIR="$HOME/.config/globus_cli"
+ 
+
+ # Transfer of the results folder
+# Generate and store a UUID for the submission-id
+sub_id="$(globus task generate-submission-id)"
+# Start the batch transfer
+task_id="$(globus transfer --sync-level mtime --jmespath 'task_id' --format=UNIX --submission-id "$sub_id" --label "$group" --batch "$LISTFILE" $SRC_EP $DEST_EP)"
+ 
+echo -e "Waiting on 'globus transfer' task '$task_id'.\nTo monitor the transfer see: https://app.globus.org/activity/$task_id/overview"
+globus task wait "$task_id" --polling-interval 60 -H
+
+
+# only go on if every file was copied
+status="$(globus task show "$task_id" --jmespath 'status' --format=UNIX)"
+if [ "$status" != "SUCCEEDED" ]; then
+    echo "$task_id failed! ($status)"
+    exit 1
+fi
+
+module unload mugqic/globus-cli/3.24.0
+timestamp_end=$(date "+%Y-%m-%d %H:%M:%S")
+ 
