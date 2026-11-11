@@ -32,7 +32,6 @@ def main():
             batch_file = args.input,
             source = args.source,
             destination = args.destination.lower(),
-            delivery_json = args.delivery,
             output = output,
             operation_cmd_line = args.operation_cmd_line,
             start = args.start,
@@ -64,7 +63,7 @@ def _append_file(json_output, readset_name, src_location_uri, dest_location_uri)
             }
         )
 
-def jsonify_delivery_transfer(batch_file, source, destination, delivery_json, output, operation_cmd_line, start=None, stop=None):
+def jsonify_delivery_transfer(batch_file, source, destination, output, operation_cmd_line, start=None, stop=None):
     """Writing transfer json based on delivery batch file"""
     
     start = start.replace('.', ':').replace('T', ' ') if start else None
