@@ -5,7 +5,7 @@
 set -uo pipefail
 umask 007
 
-SCRIPTS=${SCRIPTS:-~/MoH_Phase2_Automation/report}
+REPORT_DIR=${REPORT_DIR:-~/MoH_Phase2_Automation/report}
 DJERBA_HOME=${DJERBA_HOME:-/project/60007/MOH_PHASE2/djerba}   # TODO verify final path
 PT_CLI="pt-cli --url-root https://project-tracking.c3g-app.dev-sd4h.ca/ --project MOH-Q"
 
@@ -122,13 +122,13 @@ export FONTCONFIG_PATH=/etc/fonts
 
 # 5. MAF
 maf=$out/$tumor_dna.maf
-python3 "$SCRIPTS"/pave_to_maf.py --vcf "$vcf" --tumor "$tumor_dna" --normal "$normal_dna" --out "$maf" \
+python3 "$REPORT_DIR"/pave_to_maf.py --vcf "$vcf" --tumor "$tumor_dna" --normal "$normal_dna" --out "$maf" \
     > "$out/work/maf.log" 2>&1 || fail "MAF conversion failed, see $out/work/maf.log"
 gzip "$maf" || fail "gzip of $maf failed"
 
 # 6. INI
 ini=$out/$group.djerba.ini
-if ! APPENDIX=$DJERBA_HOME/appendix "$SCRIPTS"/djerba_ini.sh -t "$tumor_dna" -n "$normal_dna" -c "${oncotree:-}" \
+if ! APPENDIX=$DJERBA_HOME/appendix "$REPORT_DIR"/djerba_ini.sh -t "$tumor_dna" -n "$normal_dna" -c "${oncotree:-}" \
         "$results" "$maf.gz" > "$ini" 2> "$out/warnings.txt"; then
     cat "$out/warnings.txt"
     fail "INI not written"
