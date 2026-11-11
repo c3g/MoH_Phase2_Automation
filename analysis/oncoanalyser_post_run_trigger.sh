@@ -2,7 +2,7 @@
 #SBATCH --job-name=oncoanalyser_post_run
 #SBATCH --time=24:00:00
 #SBATCH --mem=4G
-# After a run finished: if COMPLETED, add metrics + result files to the DB, then deliver.
+# After a run finished: if COMPLETED, add metrics + result files to the DB, write the Djerba report, then deliver.
 # Submitted by oncoanalyser_watch.sh. Usage: oncoanalyser_post_run.sh -d <run_dir> [-n]
 # Run folder name = group (same rule as the metrics script).
 
@@ -44,7 +44,11 @@ else
     $PT_CLI ingest analysis --input-json "$json"
 fi
 
-# 3. deliver
+# 3. Djerba report (failure does not stop delivery)
+~/MoH_Phase2_Automation/report/djerba_report.sh -d "$run_dir" -g "$group" \
+    || echo "WARNING: no Djerba report for $group (see the error above)"
+
+# 4. deliver
 if [ -z "$DELIVERY_DIR" ]; then
     echo "DELIVERY_DIR not set: $group not delivered."
     exit 0
