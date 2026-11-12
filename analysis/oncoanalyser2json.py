@@ -67,14 +67,16 @@ def parse_samplesheet(samplesheet):
         for row in csv.DictReader(f):
             sample = row["sample_id"]
             info = dict(part.split(":", 1) for part in row["info"].split(";") if ":" in part)
-            readset = info.get("library_id") 
+            readset = info.get("library_id")
+            if row["sample_type"] == "tumor" and row["sequence_type"] == "dna":
+                tumor_dna = sample
 
             if sample not in samples.keys():
                 samples[sample] = [readset]
             else:
                 samples[sample].append(readset)
 
-    return samples
+    return samples, tumor_dna
 
 def parse_submit_script(submit_script_filename):
     """
@@ -157,7 +159,7 @@ def md5_list(content_list):
     return hash_md5.hexdigest()
 
 ### TO MODIFY FOR ONCOANALYSER ###
-def create(json_file, group, sample, readsets):
+def create(json_file, group, sample, readsets, timestamp, tumor_dna):
     """
     Starts creating the json dump for the passed sample
     """
@@ -191,10 +193,17 @@ def create(json_file, group, sample, readsets):
             readset_json = sample_json['readset'][readset_hash_position[0]]
        
        # add something here that calls oncoanalyser_metrics_tracking.py if oncoanalyser is already running or has finished
-       # tbd on actual mechanism
-        oncoanalyser_done = False
-        if oncoanalyser_done:
-            oncoanalyser_metrics_tracking.main(args.input, json_file, readset=readset)
+       # 
+        oncoanalyser_slurm = os.path.join(args.input, f"{group}.oncoanalyser_{timestamp}.out")
+        if os.path.isfile(oncoanalyser_slurm):
+            oncoanalyser_metrics_tracking.jsonify_oncoanalyser_metrics(
+                    input=args.input, 
+                    group=group, 
+                    results_dir=os.path.join(args.input, "results"), 
+                    output_json=json_file, 
+                    readset=readset, 
+                    sample_id=sample, 
+                    tumor_dna=tumor_dna)
         else:
             job_json = {
                 'job_name': f"oncoanalyser.{group}",
@@ -257,11 +266,11 @@ def main():
     
     # if output json already exists, skip parsing of submit scriot, go to here:
     samplesheet = os.path.join(args.input, "samplesheets", args.timestamp, f"{args.group}.samplesheet.csv")
-    samples = parse_samplesheet(samplesheet)
+    samples, tumor_dna = parse_samplesheet(samplesheet)
 
     # add or update entries
     for sample, readsets in samples.items():
-        create(json_file, args.group, sample, readsets)
+        create(json_file, args.group, sample, readsets, args.timestamp, tumor_dna)
 
 if __name__ == '__main__':
     main()
