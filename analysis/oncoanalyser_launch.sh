@@ -93,7 +93,7 @@ for group in groups; do
 
     ANALYSIS_DIR=${MOH_DIR}/${CASE}/${GROUP}
     mkdir -p ${ANALYSIS_DIR}/tmp
-    ret=$(pt-cli --url-root https://project-tracking.c3g-app.dev-sd4h.ca/ --project MOH-Q digest oncoanalyser_samplesheet --sample_group_name $group --endpoint c3g-data-repos ${ANALYSIS_DIR}/tmp 2>&1 || true)
+    ret=$(pt-cli --url-root https://project-tracking.c3g-app.dev-sd4h.ca/ --project MOH-Q digest oncoanalyser_samplesheet --sample_group_name $group --endpoint c3g-data-repos -o ${ANALYSIS_DIR}/tmp 2>&1 || true)
     if [[ "$ret" == *WARNING* ]]; then 
         echo $ret
         echo "Not ready to launch oncoanalyser for group ${GROUP}."
