@@ -57,7 +57,7 @@ else
 fi
 
 # source project tracking client environment
-source ~/pt-cli_venv/bin/activate
+source ~/project_tracking_cli/.venv/bin/activate
 
 # call client to get samplesheet for Case/CaseType
 # exact call TBD
@@ -72,6 +72,7 @@ if [[ "$output_dir" ]]; then
     OUTPUT_DIR="-o ${output_dir}/"
 else
     OUTPUT_DIR=""
+fi
 
 pt-cli --url-root https://project-tracking.c3g-app.dev-sd4h.ca/ --project MOH-Q digest oncoanalyser_samplesheet --sample_group_name ${GROUP_NAME} --endpoint c3g-data-repos ${TYPE_ARG} ${OUTPUT_DIR}
 
