@@ -70,12 +70,19 @@ def parse_samplesheet(samplesheet):
             readset = info.get("library_id")
             if row["sample_type"] == "tumor" and row["sequence_type"] == "dna":
                 tumor_dna = sample
+                role = "tumor"
+            if row["sequence_type"] == "rna":
+                role = "rna"
+            if row["sample_type"] == "normal":
+                role = "normal"
 
             if sample not in samples.keys():
-                samples[sample] = [readset]
+                samples[sample][readsets] = [readset]
             else:
-                samples[sample].append(readset)
+                samples[sample][readsets].append(readset)
+            samples[sample][role] = role
 
+    print(samples)
     return samples, tumor_dna
 
 def parse_submit_script(submit_script_filename):
@@ -159,7 +166,7 @@ def md5_list(content_list):
     return hash_md5.hexdigest()
 
 ### TO MODIFY FOR ONCOANALYSER ###
-def create(json_file, group, sample, readsets, timestamp, tumor_dna):
+def create(json_file, group, sample, readsets, timestamp, role, tumor_dna):
     """
     Starts creating the json dump for the passed sample
     """
@@ -203,6 +210,7 @@ def create(json_file, group, sample, readsets, timestamp, tumor_dna):
                     output_json=json_file, 
                     readset=readset, 
                     sample_id=sample, 
+                    role=role,
                     tumor_dna=tumor_dna)
         else:
             job_json = {
@@ -269,8 +277,8 @@ def main():
     samples, tumor_dna = parse_samplesheet(samplesheet)
 
     # add or update entries
-    for sample, readsets in samples.items():
-        create(json_file, args.group, sample, readsets, args.timestamp, tumor_dna)
+    for sample in samples.keys():
+        create(json_file, args.group, sample, sample.readsets, args.timestamp, sample.role, tumor_dna)
 
 if __name__ == '__main__':
     main()
