@@ -197,7 +197,7 @@ def create(json_file, group, sample, readsets, timestamp, tumor_dna):
         oncoanalyser_slurm = os.path.join(run_dir, f"{group}.oncoanalyser_{timestamp}.out")
         if os.path.isfile(oncoanalyser_slurm):
             oncoanalyser_metrics_tracking.jsonify_oncoanalyser_metrics(
-                    input=run_dir, 
+                    run_dir=run_dir, 
                     group=group, 
                     results_dir=os.path.join(run_dir, "results"), 
                     output_json=json_file, 
