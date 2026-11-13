@@ -214,7 +214,7 @@ def jsonify_oncoanalyser_metrics(run_dir, group, results_dir, output_json, reads
         job = make_job(process, sample_id, group, trace_rows)
         if run_stopped and job["job_status"] == "COMPLETED":
             job["file"] = job_files(process, sample_id, group, results_dir)
-            jobs[process] = job
+        jobs[process] = job
 
     # 2. metrics of this sample, read only once the tool's job is COMPLETED
     def done(process):
