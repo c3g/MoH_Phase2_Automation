@@ -211,7 +211,7 @@ def create(json_file, group, sample, readsets, timestamp, role, tumor_dna):
                     sample_id=sample, 
                     role=role,
                     tumor_dna=tumor_dna)
-            readset_json['job'].append(job_json)
+            readset_json['job'] = job_json
         else:
             job_json = {
                 'job_name': f"oncoanalyser.{group}",
