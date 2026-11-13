@@ -180,8 +180,9 @@ def main():
     # the run folder is named after the group (launch script: ${MOH_DIR}/${CASE}/${GROUP})
     group = os.path.basename(os.path.normpath(args.input))
     results_dir = os.path.join(args.input, "results")
-    jsonify_oncoanalyser_metrics(args.input, group, results_dir, args.json,
-                                 args.readset, args.sample, args.sample_type, args.tumor_sample)
+    json_output = jsonify_oncoanalyser_metrics(args.input, group, results_dir, args.json,
+                                               args.readset, args.sample, args.sample_type, args.tumor_sample)
+    save_json_file(args.json, json_output)
 
 def jsonify_oncoanalyser_metrics(run_dir, group, results_dir, output_json, readset, sample_id, role, tumor_dna):
     """
@@ -243,7 +244,7 @@ def jsonify_oncoanalyser_metrics(run_dir, group, results_dir, output_json, reads
     add_jobs(json_output, sample_id, [readset], [head] + list(jobs.values()))
 
     json_output["operation_status"] = head["job_status"]   # operation status = head job status
-    save_json_file(output_json, json_output)
+    return json_output
 
 def parse_duration(text): #needed because onco history doesnt show end time, so we calculate it 
     """Nextflow duration convert to timedelta."""
