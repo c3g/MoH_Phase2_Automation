@@ -203,8 +203,8 @@ def jsonify_oncoanalyser_metrics(run_dir, group, results_dir, output_json, reads
     head = head_job(run_dir, group)        # updates the head job made at launch
     trace_rows = read_traces(results_dir)
 
-    # files only once the whole run is COMPLETED (mid-run they may be half-written)
-    add_files = head["job_status"] == "COMPLETED"
+    # files for each COMPLETED job, once the run has stopped (mid-run outputs may still be copying)
+    run_stopped = head["job_status"] in ("COMPLETED", "FAILED")
 
     # 1. one job per process this sample owns (status + times from the trace; PENDING if not run yet)
     jobs = {}
@@ -212,9 +212,9 @@ def jsonify_oncoanalyser_metrics(run_dir, group, results_dir, output_json, reads
         if role not in owners or (process in RNA_PROCESSES and not has_rna):
             continue
         job = make_job(process, sample_id, group, trace_rows)
-        if add_files:
-            job["file"] = job_files(process, sample_id, group, results_dir)  # list of {file_name, location_uri, md5...}
-        jobs[process] = job
+        if run_stopped and job["job_status"] == "COMPLETED":
+            job["file"] = job_files(process, sample_id, group, results_dir)
+            jobs[process] = job
 
     # 2. metrics of this sample, read only once the tool's job is COMPLETED
     def done(process):
