@@ -176,12 +176,17 @@ def run_has_rna(samplesheet):
 def main():
     """ Main """
     args = parse_arguments()
+    json_output = load_json_file(args.json)
+    if json_output is None:
+        logger.error("No launch json to add metrics to - stopping.")
+        sys.exit(1)
 
-    # the run folder is named after the group (launch script: ${MOH_DIR}/${CASE}/${GROUP})
     group = os.path.basename(os.path.normpath(args.input))
     results_dir = os.path.join(args.input, "results")
-    json_output = jsonify_oncoanalyser_metrics(args.input, group, results_dir, args.json,
-                                               args.readset, args.sample, args.sample_type, args.tumor_sample)
+    jobs = jsonify_oncoanalyser_metrics(args.input, group, results_dir, args.json,
+                                        args.readset, args.sample, args.sample_type, args.tumor_sample)
+    add_jobs(json_output, args.sample, [args.readset], jobs)
+    json_output["operation_status"] = jobs[0]["job_status"]
     save_json_file(args.json, json_output)
 
 def jsonify_oncoanalyser_metrics(run_dir, group, results_dir, output_json, readset, sample_id, role, tumor_dna):
@@ -193,11 +198,6 @@ def jsonify_oncoanalyser_metrics(run_dir, group, results_dir, output_json, reads
     - result files (+ md5), once the run is COMPLETED
     - operation_status = head job status
     """
-    # Open the json made at launch (oncoanalyser2json.py)
-    json_output = load_json_file(output_json)
-    if json_output is None:
-        logger.error("No launch json to add metrics to - stopping.")
-        sys.exit(1)
 
     has_rna = run_has_rna(find_samplesheet(run_dir, group))
     head = head_job(run_dir, group)        # updates the head job made at launch
@@ -241,10 +241,7 @@ def jsonify_oncoanalyser_metrics(run_dir, group, results_dir, output_json, reads
         jobs[process] = job
 
     # 3. into the json, under this readset
-    add_jobs(json_output, sample_id, [readset], [head] + list(jobs.values()))
-
-    json_output["operation_status"] = head["job_status"]   # operation status = head job status
-    return json_output
+    return [head] + list(jobs.values())     # this readset's job list: head job first
 
 def parse_duration(text): #needed because onco history doesnt show end time, so we calculate it 
     """Nextflow duration convert to timedelta."""
