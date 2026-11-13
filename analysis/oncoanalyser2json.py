@@ -201,7 +201,9 @@ def create(json_file, group, sample, readsets, timestamp, role, tumor_dna):
        # call oncoanalyser_metrics_tracking.py if oncoanalyser is already running or has finished
         run_dir = os.path.dirname(json_file)
         oncoanalyser_slurm = os.path.join(run_dir, f"{group}.oncoanalyser_{timestamp}.out")
+        print(oncoanalyser_slurm)
         if os.path.isfile(oncoanalyser_slurm):
+            print("True")
             oncoanalyser_metrics_tracking.jsonify_oncoanalyser_metrics(
                     run_dir=run_dir, 
                     group=group, 
