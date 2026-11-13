@@ -82,7 +82,6 @@ def parse_samplesheet(samplesheet):
                 samples[sample]["readsets"].append(readset)
             samples[sample]["role"] = role
 
-    print(samples)
     return samples, tumor_dna
 
 def parse_submit_script(submit_script_filename):
