@@ -77,10 +77,10 @@ def parse_samplesheet(samplesheet):
                 role = "normal"
 
             if sample not in samples.keys():
-                samples[sample][readsets] = [readset]
+                samples[sample] = {"readsets": [readset]}
             else:
-                samples[sample][readsets].append(readset)
-            samples[sample][role] = role
+                samples[sample]["readsets"].append(readset)
+            samples[sample]["role"] = role
 
     print(samples)
     return samples, tumor_dna
@@ -277,8 +277,8 @@ def main():
     samples, tumor_dna = parse_samplesheet(samplesheet)
 
     # add or update entries
-    for sample in samples.keys():
-        create(json_file, args.group, sample, sample.readsets, args.timestamp, sample.role, tumor_dna)
+    for sample, value in samples.items():
+        create(json_file, args.group, sample, value['readsets'], args.timestamp, value['role'], tumor_dna)
 
 if __name__ == '__main__':
     main()
