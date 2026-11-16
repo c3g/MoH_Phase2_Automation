@@ -9,6 +9,8 @@ SCRIPTS=~/MoH_Phase2_Automation/report
 DJERBA_MODULES="mugqic/hmf_djerba/0.0.5 mugqic/wkhtmltopdf/0.12.6"
 SUPPORT=/project/60007/analyste_dev/software/djerba/supporting_files
 APPENDIX=/project/60007/julian3/djerba-oncoanalyser/apendice   # TODO move to final location
+PCGR_MODULE=mugqic/pcgr/2.3.1   # vcf2maf and VEP 115
+REF_FASTA=/cvmfs/ref.mugqic/genomes/oncoanalyser/GRCh38_masked_exclusions_alts_hlas.fasta
 PT_CLI="pt-cli --url-root https://project-tracking.c3g-app.dev-sd4h.ca/ --project MOH-Q"
 
 usage() {
@@ -114,9 +116,16 @@ export FONTCONFIG_PATH=/etc/fonts
 
 # 5. MAF
 maf=$out/$tumor_dna.maf
-python3 "$SCRIPTS"/pave_to_maf.py --vcf "$vcf" --tumor "$tumor_dna" --normal "$normal_dna" --out "$maf" \
-    > "$out/work/maf.log" 2>&1 || fail "MAF conversion failed, see $out/work/maf.log"
-gzip "$maf" || fail "gzip of $maf failed"
+zcat "$vcf" > "$TMPDIR/$tumor_dna.vcf" || fail "zcat of $vcf failed"
+( module load $PCGR_MODULE && vcf2maf.pl --input-vcf "$TMPDIR/$tumor_dna.vcf" --output-maf "$TMPDIR/vcf2maf.maf" \
+    --tumor-id "$tumor_dna" --normal-id "$normal_dna" --vcf-tumor-id "$tumor_dna" --vcf-normal-id "$normal_dna" \
+    --ref-fasta "$REF_FASTA" --ncbi-build GRCh38 --tmp-dir "$TMPDIR" \
+    --vep-path "$(dirname "$(command -v vep)")" --vep-data "$PCGR_VEP_CACHE" --cache-version 115 ) \
+    > "$out/work/maf.log" 2>&1 || fail "vcf2maf failed, see $out/work/maf.log"
+# as djerba.clean_maf in GenPipes; TODO keep Targeted_Region with vcf2maf > 1.6.22
+awk -F'\t' '/^#/ {print; next} !h {for (i = 1; i <= NF; i++) c[$i] = i; h = 1; print; next}
+    $c["t_depth"] != "" && $c["Variant_Classification"] != "Targeted_Region"' "$TMPDIR/vcf2maf.maf" \
+    | sed 's/gnomADe_/gnomAD_/g' | gzip > "$maf.gz" || fail "MAF clean-up failed"
 
 # 6. INI
 ini=$out/$group.djerba.ini
