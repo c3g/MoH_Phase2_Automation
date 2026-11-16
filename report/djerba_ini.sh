@@ -1,11 +1,11 @@
 #!/usr/bin/env bash
 # Djerba INI of one oncoanalyser sample, to stdout.
-# Usage: djerba_ini.sh [-t tumor] [-n normal] [-c oncotree] <results_dir> <maf.gz> > sample.djerba.ini
+# Usage: djerba_ini.sh -t tumor -n normal [-c oncotree] <results_dir> <maf.gz> > sample.djerba.ini
 # Env: APPENDIX (required), STUDY, AUTHOR
 
 set -euo pipefail
 
-usage="Usage: $(basename "$0") [-t tumor] [-n normal] [-c oncotree] <results_dir> <maf.gz>"
+usage="Usage: $(basename "$0") -t tumor -n normal [-c oncotree] <results_dir> <maf.gz>"
 tumor="" normal="" oncotree=""
 while getopts 't:n:c:' OPTION; do
     case "$OPTION" in
@@ -26,10 +26,8 @@ results=$(cd "$results" && pwd)
 sample=$(basename "$results")
 warn() { echo "WARNING: $*" >&2; }
 
-[ -n "$tumor" ] || tumor=$(basename "$(ls "$results"/purple/*.purple.qc 2>/dev/null | head -1)" .purple.qc)
-[ -n "$normal" ] || normal=$(ls "$results"/amber/ "$results"/cobalt/ 2>/dev/null | grep -oE '^[A-Za-z0-9_-]+DN' | sort -u | head -1 || true)
 if [ -z "$tumor" ] || [ -z "$normal" ]; then
-    echo "ERROR: tumor/normal not found in $results, use -t and -n" >&2
+    echo "$usage" >&2
     exit 1
 fi
 
