@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Djerba report of one oncoanalyser run: work in <run_dir>/djerba/, HTML and PDF to results/<group>/djerba/.
+# Djerba report of one oncoanalyser run: HTML and PDF in <run_dir>/djerba/.
 # Usage: djerba_report.sh -d <run_dir> [-g <group>] [-c <oncotree>]
 
 set -uo pipefail
@@ -29,7 +29,6 @@ run_dir=$(realpath "$run_dir")
 group=${group:-$(basename "$run_dir")}   # default: run folder name
 results=$run_dir/results/$group
 out=$run_dir/djerba
-delivered=$results/djerba
 
 reason=""
 fail() {
@@ -58,10 +57,7 @@ tumor_dna=$(awk -F, '$4=="tumor" && $5=="dna" {print $3; exit}' "$samplesheet")
 normal_dna=$(awk -F, '$4=="normal" && $5=="dna" {print $3; exit}' "$samplesheet")
 [ -n "$tumor_dna" ] && [ -n "$normal_dna" ] || fail "tumor or normal DNA missing in $samplesheet"
 
-# 2. replace previous report
-rm -rf "$out" "$delivered"
-
-# 3. OncoTree
+# 2. OncoTree
 oncotree_source=none
 if [ "$oncotree_set" = true ]; then
     [ -n "$oncotree" ] && oncotree_source=option
@@ -78,6 +74,9 @@ else
 fi
 
 [ -d "$APPENDIX" ] || fail "no appendix in $APPENDIX"
+
+# 3. replace previous report
+rm -rf "$out"
 mkdir -p "$out/work"
 
 # status.txt on exit
@@ -135,10 +134,6 @@ if [ $? -ne 0 ] || ! ls "$out"/*.pdf >/dev/null 2>&1; then
     fail "Djerba failed, see $out/djerba.log"
 fi
 
-# 8. HTML and PDF to results/
-mkdir -p "$delivered" && cp "$out"/*.html "$out"/*.pdf "$delivered"/ \
-    || { rm -rf "$delivered"; fail "copy of the report to $delivered failed"; }
-
 status=OK
-echo "Report: $(ls "$delivered"/*.pdf)"
+echo "Report: $(ls "$out"/*.pdf)"
 exit 0
