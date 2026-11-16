@@ -115,4 +115,15 @@ for f in "${expected[@]}"; do
   fi
 done
 
+# CALL TO ONCOANALYSER2JSON
+# FILL THE JSON: jobs + metrics + files
+timestamp=$(basename "$(dirname "$samplesheet")")     # samplesheets/<timestamp>/<group>.samplesheet.csv
+json=$run_dir/$group.oncoanalyser.json
+
+if ! python3 ~/MoH_Phase2_Automation/analysis/oncoanalyser2json.py \
+        -i "$run_dir" -t "$timestamp" -g "$group" -o "$json" >&2; then
+  echo "ERROR: oncoanalyser2json.py failed for $group"
+  exit 1
+fi
+
 echo "COMPLETED"
