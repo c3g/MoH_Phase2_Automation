@@ -5,8 +5,10 @@
 set -uo pipefail
 umask 007
 
-REPORT_DIR=${REPORT_DIR:-~/MoH_Phase2_Automation/report}
-DJERBA_HOME=${DJERBA_HOME:-/project/60007/MOH_PHASE2/djerba}   # TODO verify final path
+SCRIPTS=~/MoH_Phase2_Automation/report
+DJERBA_MODULES="mugqic/hmf_djerba/0.0.5 mugqic/wkhtmltopdf/0.12.6"
+SUPPORT=/project/60007/analyste_dev/software/djerba/supporting_files
+APPENDIX=/project/60007/julian3/djerba-oncoanalyser/apendice   # TODO move to final location
 PT_CLI="pt-cli --url-root https://project-tracking.c3g-app.dev-sd4h.ca/ --project MOH-Q"
 
 usage() {
@@ -75,8 +77,7 @@ else
     [ -n "$oncotree" ] && oncotree_source=database
 fi
 
-[ -f "$DJERBA_HOME/venv/bin/activate" ] || fail "no Djerba venv in $DJERBA_HOME"
-[ -d "$DJERBA_HOME/appendix" ] || fail "no appendix in $DJERBA_HOME"
+[ -d "$APPENDIX" ] || fail "no appendix in $APPENDIX"
 mkdir -p "$out/work"
 
 # status.txt on exit
@@ -105,30 +106,22 @@ vcf=$results/purple/$tumor_dna.purple.somatic.vcf.gz
 export TMPDIR=$out/.tmp MPLCONFIGDIR=$out/.tmp/mpl XDG_CACHE_HOME=$out/.tmp/cache
 mkdir -p "$MPLCONFIGDIR" "$XDG_CACHE_HOME"
 export MUGQIC_INSTALL_HOME=/cvmfs/soft.mugqic/CentOS6
-module load python/3.13.2 || fail "module load python failed"
 module use $MUGQIC_INSTALL_HOME/modulefiles || fail "module use $MUGQIC_INSTALL_HOME/modulefiles failed"
-module load mugqic/R_Bioconductor/4.3.2_3.18 mugqic/wkhtmltopdf/0.12.6 || fail "module load R/wkhtmltopdf failed"
-source "$DJERBA_HOME/venv/bin/activate"
-export PATH=$DJERBA_HOME/bin:$PATH
-export DJERBA_PACKAGES=djerba:hmf_djerba
-DJERBA_BASE_DIR=$(python3 -c "import djerba,os;print(os.path.dirname(djerba.__file__))") \
-    || fail "djerba can not be imported from $DJERBA_HOME/venv"
-export DJERBA_BASE_DIR
-export DJERBA_RUN_DIR=$DJERBA_BASE_DIR/util/data
+module load $DJERBA_MODULES || fail "module load $DJERBA_MODULES failed"
 export DJERBA_TRACKING_DIR=$out
-export DJERBA_CORE_HTML_DIR=$DJERBA_HOME/supporting_files/custom_formatting/McGill_html
-export ONCOKB_TOKEN=$DJERBA_HOME/supporting_files/oncokb_tokens/oncokb_token.txt
+export DJERBA_CORE_HTML_DIR=$SUPPORT/custom_formatting/McGill_html
+export ONCOKB_TOKEN=$SUPPORT/oncokb_tokens/oncokb_token.txt
 export FONTCONFIG_PATH=/etc/fonts
 
 # 5. MAF
 maf=$out/$tumor_dna.maf
-python3 "$REPORT_DIR"/pave_to_maf.py --vcf "$vcf" --tumor "$tumor_dna" --normal "$normal_dna" --out "$maf" \
+python3 "$SCRIPTS"/pave_to_maf.py --vcf "$vcf" --tumor "$tumor_dna" --normal "$normal_dna" --out "$maf" \
     > "$out/work/maf.log" 2>&1 || fail "MAF conversion failed, see $out/work/maf.log"
 gzip "$maf" || fail "gzip of $maf failed"
 
 # 6. INI
 ini=$out/$group.djerba.ini
-if ! APPENDIX=$DJERBA_HOME/appendix "$REPORT_DIR"/djerba_ini.sh -t "$tumor_dna" -n "$normal_dna" -c "${oncotree:-}" \
+if ! APPENDIX=$APPENDIX "$SCRIPTS"/djerba_ini.sh -t "$tumor_dna" -n "$normal_dna" -c "${oncotree:-}" \
         "$results" "$maf.gz" > "$ini" 2> "$out/warnings.txt"; then
     cat "$out/warnings.txt"
     fail "INI not written"
