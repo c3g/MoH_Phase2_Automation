@@ -115,7 +115,7 @@ for GROUP in $group; do
     ~/MoH_Phase2_Automation/analysis/create_oncoanalyser_submission.sh -g ${GROUP} -d ${ANALYSIS_DIR} -t ${TIMESTAMP} && \
     ONCOANALYSER_JSON=${ANALYSIS_DIR}/${GROUP}.oncoanalyser.json && \
     # add oncoanalyser launch json and ingest into DB to set operation to PENDING
-    ~/MoH_Phase2_Automation/analysis/oncoanalyser2json.py -i ${ANALYSIS_DIR} -t ${TIMESTAMP} -o ${ONCOANALYSER_JSON} && \
+    ~/MoH_Phase2_Automation/analysis/oncoanalyser2json.py -i ${ANALYSIS_DIR} -g ${GROUP} -t ${TIMESTAMP} -o ${ONCOANALYSER_JSON} && \
     pt-cli --url-root https://project-tracking.c3g-app.dev-sd4h.ca/ --project MOH-Q ingest analysis --input-json ${ONCOANALYSER_JSON} && \
     sbatch ${ANALYSIS_DIR}/${GROUP}.oncoanalyser_${TIMESTAMP}.submit && echo "Oncoanalyser launched for ${GROUP}."
 done
