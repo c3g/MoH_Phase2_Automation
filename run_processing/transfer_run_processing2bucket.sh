@@ -113,7 +113,7 @@ if [ $? -eq 0  ]; then
          -H "Content-Type: application/json" \
          -X POST \
          -d '{"readset_name": "'"$readset_name"'"}' \
-         $(cat .config/jenkins/webhook_url.txt)
+         $(cat ~/.config/jenkins/webhook_url.txt)
     sleep 10
     done
 else
