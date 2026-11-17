@@ -39,7 +39,7 @@ fi
 
 #destination_lowercase="${destination,,}"
 #DEST_EP=$(jq -r --arg dest "$destination_lowercase" '.robot_endpoints[$dest].uuid' "$ROBOT_EP")
-DEST_EP="2cef98ab-568d-4136-9e0c-8391215dd929"
+DEST_EP="f0160232-c923-4c26-a9aa-b989402cb70b"
 DEST_LOC="MOH-Q"
 destination="c3g-data-repos"
 # Abacus Endpoint

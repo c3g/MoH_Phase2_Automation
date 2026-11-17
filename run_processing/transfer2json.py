@@ -94,7 +94,7 @@ def jsonify_raw_data_transfer(batch_file, source, destination, output, operation
 
             _append_file(json_output, readset, src_location_uri, dest_location_uri)
 
-            if destination == 'c3g-data-repos'
+            if destination == 'c3g-data-repos':
                 # for testing: update path when ready
                 bucket_mount = "/project/object-store/mountpoint-s3/moh-q-test/"
                 cardinal_location_uri = f"cardinal://{bucket_mount}/{dest_path.strip()}"
