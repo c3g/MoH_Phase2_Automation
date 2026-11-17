@@ -37,11 +37,11 @@ def decide_group(pt, group_name):
     print(operations)
     if any(op["status"] in ("PENDING", "RUNNING") for op in operations):
         return {"group": group["name"], "decision": "WAIT", "reason": "an oncoanalyser run of this group is still running: re-check when it ends"}
-    complete_overlap = [op for op in operations if ready_readsets <= set(op["readset_ids"])]
+    complete_overlap = [op for op in operations if set(readset_id_list) <= set(op["readset_ids"])]
     if any(op["status"] == "COMPLETED" for op in complete_overlap):
         return {"group": group["name"], "decision": "SKIP", "reason": "a completed oncoanalyser run already covers all of the group's readsets"}
     else:
-        return {"group": group["name"], "decision": "GO", "reason": "analysis not yet launched"}
+        return {"group": group["name"], "decision": "GO", "reason": "analysis not yet successfully completed"}
 
 def main():
     parser = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
