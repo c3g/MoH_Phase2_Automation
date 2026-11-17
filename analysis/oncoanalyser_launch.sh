@@ -11,12 +11,12 @@
 THIS_SCRIPT=$(basename "$0")
 
 usage() {
-    echo "script usage: $THIS_SCRIPT -h [-r readset] [-s sample] [-g groups]"
+    echo "script usage: $THIS_SCRIPT -h [-r readset] [-s sample] [-g group]"
     echo "Usage:"
     echo " -h                               Display this help message."
     echo " -r <readset>                     Readset for which to construct sample sheet and launch analysis. To be used instead of -s <sample> or -g <group>."
     echo " -s <sample>                      Sample for which to construct sample sheet and launch analysis. To be used instead of -r <readset> or -g <group>."
-    echo " -g <groups>                      Sample group(s) for which to construct sample sheet and launch analysis. To be used instead of -s <sample> or -r <readset>."
+    echo " -g <group>                      Sample group for which to construct sample sheet and launch analysis. To be used instead of -s <sample> or -r <readset>."
     exit 1                      
 }
 
@@ -29,7 +29,7 @@ while getopts 'hr::s::g:' OPTION; do
             sample="$OPTARG"
             ;;
         g)
-            groups+=("$OPTARG")
+            group="$OPTARG"
             ;;
         h)
             usage
@@ -41,7 +41,7 @@ while getopts 'hr::s::g:' OPTION; do
 done
 
 # mutually exclusive arguments
-if [[ "$sample" && "$groups" ]]; then
+if [[ "$sample" && "$group" ]]; then
     echo -e "ERROR: Arguments -r, -s and -g are mutually exclusive. Supply only one.\n"
     usage
 fi
@@ -52,7 +52,7 @@ if [[ "$readset" && "$sample" ]]; then
 fi
 
 # mutually exclusive arguments
-if [[ "$readset" && "$groups" ]]; then
+if [[ "$readset" && "$group" ]]; then
     echo -e "ERROR: Arguments -s and -g are mutually exclusive. Supply only one.\n"
     usage
 fi
@@ -76,12 +76,11 @@ if [[ "$readset" ]]; then
 fi
 if [[ "$sample" ]]; then
     # find group(s) for sample
-    groups=`pt-cli --url-root https://project-tracking.c3g-app.dev-sd4h.ca/ --project MOH-Q sample_group list --sample_name $sample \
+    group=`pt-cli --url-root https://project-tracking.c3g-app.dev-sd4h.ca/ --project MOH-Q sample_group list --sample_name $sample \
        | jq -r -c '.[] | select(.deleted == false and .deprecated == false) | .name'`
 fi
 # check to see if oncoanalyser is currently running
-for group in groups; do
-    GROUP=$group
+for GROUP in $group; do
     ret=$(~/MoH_Phase2_Automation/analysis/check_operations.py -g ${GROUP} 2>&1 || true)
     if [[ "$ret" == *\"decision\":\ \"GO\"* ]]; then 
         echo "Oncoanalyser not yet launched for all readsets of group ${GROUP}."
@@ -93,7 +92,7 @@ for group in groups; do
 
     ANALYSIS_DIR=${MOH_DIR}/${CASE}/${GROUP}
     mkdir -p ${ANALYSIS_DIR}/tmp
-    ret=$(pt-cli --url-root https://project-tracking.c3g-app.dev-sd4h.ca/ --project MOH-Q digest oncoanalyser_samplesheet --sample_group_name $group --endpoint c3g-data-repos -o ${ANALYSIS_DIR}/tmp 2>&1 || true)
+    ret=$(pt-cli --url-root https://project-tracking.c3g-app.dev-sd4h.ca/ --project MOH-Q digest oncoanalyser_samplesheet --sample_group_name $GROUP --endpoint cardinal -o ${ANALYSIS_DIR}/tmp 2>&1 || true)
     if [[ "$ret" == *WARNING* ]]; then 
         echo $ret
         echo "Not ready to launch oncoanalyser for group ${GROUP}."
