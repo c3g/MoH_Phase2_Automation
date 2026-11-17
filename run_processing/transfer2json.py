@@ -19,7 +19,6 @@ def main():
     parser.add_argument('--start', required=False, help="Start time of operation (format: YYYY-MM-DDTHH.MM.SS).")
     parser.add_argument('--stop', required=False, help="End time of operation (format: YYYY-MM-DDTHH.MM.SS).")
     parser.add_argument('--operation_cmd_line', required=True, help="Command used for transfer.")
-    parser.add_argument('--delivery', required=False, help="Delivery json file.")
     args = parser.parse_args()
 
     if not args.output:
@@ -28,27 +27,15 @@ def main():
     else:
         output = args.output
 
-    if args.delivery:
-        jsonify_delivery_transfer(
-                batch_file = args.input,
-                source = args.source,
-                destination = args.destination.lower(),
-                delivery_json = args.delivery,
-                output = output,
-                operation_cmd_line = args.operation_cmd_line,
-                start = args.start,
-                stop = args.stop                                                                                                                                            
-                )
-    else:
-        jsonify_raw_data_transfer(
-                batch_file = args.input,
-                source = args.source,
-                destination = args.destination.lower(),
-                output = output,
-                operation_cmd_line = args.operation_cmd_line,
-                start = args.start,
-                stop = args.stop                                                                                                                                    
-                )
+    jsonify_raw_data_transfer(
+            batch_file = args.input,
+            source = args.source,
+            destination = args.destination.lower(),
+            output = output,
+            operation_cmd_line = args.operation_cmd_line,
+            start = args.start,
+            stop = args.stop                                                                                                                                    
+            )
 
 def _append_file(json_output, readset_name, src_location_uri, dest_location_uri):
     """Append a file entry to an existing readset or create a new one."""
@@ -75,10 +62,6 @@ def _append_file(json_output, readset_name, src_location_uri, dest_location_uri)
                 ]
             }
         )
-
-def jsonify_delivery_transfer(batch_file, source, destination, delivery_json, output, operation_cmd_line, start=None, stop=None):
-    """Writing transfer json based on json delivery file"""""""""
-    ### TBD ###
 
 def jsonify_raw_data_transfer(batch_file, source, destination, output, operation_cmd_line, start=None, stop=None):
     """Writing transfer json based on batch file."""
@@ -110,6 +93,12 @@ def jsonify_raw_data_transfer(batch_file, source, destination, output, operation
             dest_location_uri = f"{destination}://{dest_path.strip()}"
 
             _append_file(json_output, readset, src_location_uri, dest_location_uri)
+
+            if destination == 'c3g-data-repos'
+                # for testing: update path when ready
+                bucket_mount = "/project/object-store/mountpoint-s3/moh-q-test/"
+                cardinal_location_uri = f"cardinal://{bucket_mount}/{dest_path.strip()}"
+                _append_file(json_output, readset, src_location_uri, cardinal_location_uri)
             
     with open(output, 'w', encoding='utf-8') as file:
         json.dump(json_output, file, ensure_ascii=False, indent=4)
