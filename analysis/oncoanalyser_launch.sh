@@ -58,7 +58,7 @@ if [[ "$readset" && "$group" ]]; then
 fi
 
 # mandatory arguments
-if [[ ! "$readset" && ! "$sample" && ! "$groups" ]]; then
+if [[ ! "$readset" && ! "$sample" && ! "$group" ]]; then
     echo -e "ERROR: Missing mandatory argument -r, -s or -g.\n"
     usage
 fi
