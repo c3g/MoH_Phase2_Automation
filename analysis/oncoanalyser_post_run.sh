@@ -98,7 +98,5 @@ echo "$group ($status) ingested. (post-oncoanalyser run)"
 # "$SCRIPTS"/delivery/oncoanalyser_delivery.sh -i "$run_dir" -g "$group"
 # echo "$group delivered."
 
-# 6.INGEST AGAIN
-source ~/project_tracking_cli/.venv/bin/activate
-$PT_CLI ingest analysis --input-json "$json"
-echo "$group ($status) ingested. (post delivery)"
+# 6. RELAUNCH if the group has readsets this run did not use
+"$SCRIPTS"/analysis/oncoanalyser_launch.sh -g "$group"
