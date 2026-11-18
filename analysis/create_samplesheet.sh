@@ -1,7 +1,5 @@
 #!/usr/bin/env bash
 
-### WORK IN PROGRESS ###
-
 THIS_SCRIPT=$(basename "$0")
 
 usage() {
@@ -59,8 +57,7 @@ fi
 # source project tracking client environment
 source ~/project_tracking_cli/.venv/bin/activate
 
-# call client to get samplesheet for Case/CaseType
-# exact call TBD
+# call client to get samplesheet for CaseType
 if [[ "$sample" ]]; then
     SAMPLE_GROUPS=`pt-cli --url-root https://project-tracking.c3g-app.dev-sd4h.ca/ --project MOH-Q sample_group list --sample_name ${sample}` # find group name for sample
     GROUP_NAME=$(echo "$SAMPLE_GROUPS" | jq -r '.[0].name')
