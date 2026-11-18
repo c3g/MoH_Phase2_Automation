@@ -63,17 +63,15 @@ module use "$MUGQIC_INSTALL_HOME/modulefiles"
 ##################################################
 
 ## Prepare run list
-#folder_prefix=/nb/Research/freezeman-processing
-folder_prefix=/home/mjaniak/projects/mjaniak/MOH_Phase2
-#input=$(find "$folder_prefix"/*/*/ -maxdepth 1 -type d -name "$runfolder")
-input=$(find "$folder_prefix"/ -maxdepth 1 -type d -name "$runfolder")
+folder_prefix=/nb/Research/freezeman-processing
+input=$(find "$folder_prefix"/*/*/ -maxdepth 1 -type d -name "$runfolder")
 echo "-> Processing $runfolder..."
 
 TIMESTAMP=$(date +%FT%H.%M.%S)
 
 if [ -s "$input"  ]; then
-    # TEMP for testing, change for prod
-    run_processing_json=/home/mjaniak/projects/mjaniak/MOH_Phase2/TEMP/$runfolder.json
+    # write to scratch for tmp files
+    run_processing_json=/lb/scratch/c3g-processing/$runfolder.json
     if [ -n "$nucleic_acid_type"  ]; then
         run_processing2json_args="${run_processing2json_args} --nucleic_acid_type ${nucleic_acid_type}"                  
     fi
