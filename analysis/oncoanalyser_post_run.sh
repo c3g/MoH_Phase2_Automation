@@ -56,14 +56,15 @@ fi
 
 # COMPLETED
 if grep -q "Pipeline completed successfully" "$log"; then
-  # check the orange report exists -------------------------------------------------------------------------tbd add more checks?
+  # check the orange report exists
   tumor_dna=$(awk -F, '$4=="tumor" && $5=="dna" {print $3; exit}' "$samplesheet")
   orange=$results/orange/$tumor_dna.orange.pdf
   if [ ! -s "$orange" ]; then
-    echo "INCOMPLETE: missing $orange."
-    exit 1
+    status=FAILED
+    echo "FAILED: missing $orange."
+  else
+    status=COMPLETED
   fi
-  status=COMPLETED
 
 # FAILED
 elif grep -q "Pipeline completed with errors" "$log"; then
