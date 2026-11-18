@@ -74,5 +74,5 @@ else
     OUTPUT_DIR=""
 fi
 
-pt-cli --url-root https://project-tracking.c3g-app.dev-sd4h.ca/ --project MOH-Q digest oncoanalyser_samplesheet --sample_group_name ${GROUP_NAME} --endpoint c3g-data-repos ${TYPE_ARG} ${OUTPUT_DIR}
+pt-cli --url-root https://project-tracking.c3g-app.dev-sd4h.ca/ --project MOH-Q digest oncoanalyser_samplesheet --sample_group_name ${GROUP_NAME} --endpoint cardinal ${TYPE_ARG} ${OUTPUT_DIR}
 

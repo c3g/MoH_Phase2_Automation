@@ -1,16 +1,17 @@
 #!/usr/bin/env bash
 # Check that an oncoanalyser run finished and that its main outputs are there.
+# Also fills the project tracking json (jobs + metrics + files) via oncoanalyser2json.py
+# when the run is COMPLETED, FAILED or RUNNING.
 
 # ==========
-# status: based on WorkflowStats line in .nextflow.log 
+# status: based on WorkflowStats line in .nextflow.log
 # - COMPLETED: Nextflow ended the run itself and all main outputs exist.
 # In the log: "Pipeline completed successfully"; (Tasks that failed but worked on a retry are still counted)
 # - FAILED: Nextflow ended the run itself. In the log: "Pipeline completed with errors"
 # - RUNNING: no WorkflowStats line yet, and the log was written recently.
 # - STALLED: no WorkflowStats line, and the log has been quiet for more than 2 hours.
 # - INCOMPLETE: completed successfully, but some main outputs are missing.
-
-
+# Exit code: 0 only for COMPLETED, 1 otherwise.
 
 
 usage() {
@@ -36,6 +37,19 @@ samplesheet=$(ls -1 "$run_dir"/samplesheets/*/"$group".samplesheet.csv 2>/dev/nu
 results=$run_dir/results/$group
 log=$run_dir/.nextflow.log
 
+# fill the json (jobs + metrics + files) via oncoanalyser2json.py
+# status in the json comes from .nextflow/history: COMPLETED, FAILED or RUNNING
+make_json() {
+  local timestamp json
+  timestamp=$(basename "$(dirname "$samplesheet")")     # samplesheets/<timestamp>/<group>.samplesheet.csv
+  json=$run_dir/$group.oncoanalyser.json
+  if ! python3 ~/MoH_Phase2_Automation/analysis/oncoanalyser2json.py \
+          -i "$run_dir" -t "$timestamp" -g "$group" -o "$json" >&2; then
+    echo "ERROR: oncoanalyser2json.py failed for $group"
+    return 1
+  fi
+}
+
 # CHECK LOGS
 
 if [ ! -d "$run_dir" ] || [ ! -f "$samplesheet" ]; then
@@ -57,15 +71,18 @@ elif grep -q "Pipeline completed with errors" "$log"; then
   echo "FAILED"
   echo "  failed step: $(grep "Error executing process" "$log" | tail -1 | sed 's/.*Error executing process > //')"
   echo "  reason:      $(grep -A1 "^Caused by:" "$log" | grep -v -e "^Caused by:" -e "^--" | tail -1 | sed 's/^ *//')"
+  make_json 
   exit 1
 
 else
-  #still running, or stalled (killed or stuck) if the log is quiet
+  # still running, or stalled (killed or stuck) if the log is quiet
   minutes_since=$(( ( $(date +%s) - $(stat -c %Y "$log") ) / 60 ))
   if [ "$minutes_since" -gt 120 ]; then
     echo "STALLED: .nextflow.log not updated for $minutes_since min (killed or stuck, resubmit)"
+    # no json: a killed run stays "-" in history, so it would show RUNNING forever
   else
     echo "RUNNING"
+    make_json 
   fi
   exit 1
 fi
@@ -82,24 +99,22 @@ normal_dna=$(awk -F, '$4=="normal" && $5=="dna" {print $3; exit}' "$samplesheet"
 tumor_dna=$(awk -F, '$4=="tumor" && $5=="dna" {print $3; exit}' "$samplesheet")
 tumor_rna=$(awk -F, '$4=="tumor" && $5=="rna" {print $3; exit}' "$samplesheet")
 
-# main outputs that must exist (TO BE UPDATED BAES ON DELIVERABLES IF NEEDED)--------------------------------------------
+# main outputs that must exist (TO BE UPDATED BASED ON DELIVERABLES IF NEEDED)
 expected=(
     # redux bams
     "$results/alignments/$tumor_dna/$tumor_dna.redux.bam"
     "$results/alignments/$tumor_dna/$tumor_dna.redux.bam.bai"
     "$results/alignments/$normal_dna/$normal_dna.redux.bam"
     "$results/alignments/$normal_dna/$normal_dna.redux.bam.bai"
-    
-    #bamtools
+
+    # bamtools
     "$results/bamtools/$normal_dna/$normal_dna.bam_metric.summary.tsv"
     "$results/bamtools/$tumor_dna/$tumor_dna.bam_metric.summary.tsv"
-
 
     "$results/purple/$tumor_dna.purple.purity.tsv"
     "$results/purple/$tumor_dna.purple.qc"
     "$results/qsee/$tumor_dna.qsee.status.tsv.gz"
     "$results/orange/$tumor_dna.orange.pdf"
-
 )
 
 # RNA (if exists)
@@ -115,15 +130,7 @@ for f in "${expected[@]}"; do
   fi
 done
 
-# CALL TO ONCOANALYSER2JSON
-# FILL THE JSON: jobs + metrics + files
-timestamp=$(basename "$(dirname "$samplesheet")")     # samplesheets/<timestamp>/<group>.samplesheet.csv
-json=$run_dir/$group.oncoanalyser.json
-
-if ! python3 ~/MoH_Phase2_Automation/analysis/oncoanalyser2json.py \
-        -i "$run_dir" -t "$timestamp" -g "$group" -o "$json" >&2; then
-  echo "ERROR: oncoanalyser2json.py failed for $group"
-  exit 1
-fi
+# FILL THE JSON: jobs + metrics + files (status COMPLETED)
+make_json || exit 1
 
 echo "COMPLETED"
