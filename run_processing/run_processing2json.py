@@ -88,10 +88,10 @@ def parse_samplesheet(df, sample_name):
     tumor = True if sample_df["Type"].values[0] == "DT" or sample_df["Type"].values[0] == "RT" else False
     alias = sample_df["Sample"].values[0]
     if tumor == True:
-        index = sample_df["Index"].values[0] if sample_df["Index"].values[0] >=1 else 1
+        index = sample_df["Index"].values[0] if sample_df["Index"].values[0] >=1 else 0
         group = f"{specimen}_G{index}"
     else:
-        indexes = df.loc[df['Case'] == specimen]['Index'].fillna("1").drop_duplicates().values
+        indexes = df.loc[df['Case'] == specimen]['Index'].fillna("0").drop_duplicates().values
         group = [f"{specimen}_G{index}" for index in indexes]
 
     return specimen, cohort, case_type, oncotree_code, cancer_type, tumor, alias, group
