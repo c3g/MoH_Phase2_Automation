@@ -1,7 +1,6 @@
 #!/usr/bin/env bash
 # Check that an oncoanalyser run finished and that its main outputs are there.
-# Also fills the project tracking json (jobs + metrics + files) via oncoanalyser2json.py
-# when the run is COMPLETED, FAILED or RUNNING.
+# MANUAL CHECK ONLY: no json ingestionor delivery is done using this script.
 
 # ==========
 # status: based on WorkflowStats line in .nextflow.log
@@ -37,19 +36,6 @@ samplesheet=$(ls -1 "$run_dir"/samplesheets/*/"$group".samplesheet.csv 2>/dev/nu
 results=$run_dir/results/$group
 log=$run_dir/.nextflow.log
 
-# fill the json (jobs + metrics + files) via oncoanalyser2json.py
-# status in the json comes from .nextflow/history: COMPLETED, FAILED or RUNNING
-make_json() {
-  local timestamp json
-  timestamp=$(basename "$(dirname "$samplesheet")")     # samplesheets/<timestamp>/<group>.samplesheet.csv
-  json=$run_dir/$group.oncoanalyser.json
-  if ! python3 ~/MoH_Phase2_Automation/analysis/oncoanalyser2json.py \
-          -i "$run_dir" -t "$timestamp" -g "$group" -o "$json" >&2; then
-    echo "ERROR: oncoanalyser2json.py failed for $group"
-    return 1
-  fi
-}
-
 # CHECK LOGS
 
 if [ ! -d "$run_dir" ] || [ ! -f "$samplesheet" ]; then
@@ -71,7 +57,6 @@ elif grep -q "Pipeline completed with errors" "$log"; then
   echo "FAILED"
   echo "  failed step: $(grep "Error executing process" "$log" | tail -1 | sed 's/.*Error executing process > //')"
   echo "  reason:      $(grep -A1 "^Caused by:" "$log" | grep -v -e "^Caused by:" -e "^--" | tail -1 | sed 's/^ *//')"
-  make_json 
   exit 1
 
 else
@@ -79,10 +64,8 @@ else
   minutes_since=$(( ( $(date +%s) - $(stat -c %Y "$log") ) / 60 ))
   if [ "$minutes_since" -gt 120 ]; then
     echo "STALLED: .nextflow.log not updated for $minutes_since min (killed or stuck, resubmit)"
-    # no json: a killed run stays "-" in history, so it would show RUNNING forever
   else
     echo "RUNNING"
-    make_json 
   fi
   exit 1
 fi
@@ -129,8 +112,5 @@ for f in "${expected[@]}"; do
     exit 1
   fi
 done
-
-# FILL THE JSON: jobs + metrics + files (status COMPLETED)
-make_json || exit 1
 
 echo "COMPLETED"
