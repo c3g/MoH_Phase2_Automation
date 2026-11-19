@@ -44,14 +44,15 @@ timestamp=$(basename "$(dirname "$samplesheet")")   # launch timestamp, needed f
 results=$run_dir/results/$group
 log=$run_dir/.nextflow.log
 json=$run_dir/$group.oncoanalyser.json 
+out=$run_dir/$group.oncoanalyser_$timestamp.out
 
 
 # 1. CHECK THE RUN
 
-# NOT STARTED
-if [ ! -f "$log" ]; then
-  echo "NOT STARTED: no .nextflow.log."
-  exit 1
+# NOT STARTED: no Slurm .out for the latest launch
+if [ ! -f "$out" ]; then
+  echo "NOT STARTED: no $(basename "$out")."
+  exit 
 fi
 
 # COMPLETED
