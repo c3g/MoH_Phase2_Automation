@@ -127,9 +127,23 @@ awk -F'\t' '/^#/ {print; next} !h {for (i = 1; i <= NF; i++) c[$i] = i; h = 1; p
     $c["t_depth"] != "" && $c["Variant_Classification"] != "Targeted_Region"' "$TMPDIR/vcf2maf.maf" \
     | sed 's/gnomADe_/gnomAD_/g' | gzip > "$maf.gz" || fail "MAF clean-up failed"
 
+# Isofox 2 tsv as Isofox 1 csv; TODO remove when hmf_djerba reads Isofox 2 tsv
+isofox_csv=""
+tsv=$(ls "$results"/isofox/*.isf.pass_fusions.tsv 2>/dev/null | head -1)
+if [ -n "$tsv" ] && ! ls "$results"/isofox/*.isf.pass_fusions.csv >/dev/null 2>&1; then
+    isofox_csv=$out/work/$(basename "$tsv" .tsv).csv
+    awk -F'\t' -v OFS=, 'BEGIN {r["ChromosomeUp"] = "ChrUp"; r["ChromosomeDown"] = "ChrDown"; r["SvType"] = "SVType"}
+        NR == 1 {for (i = 1; i <= NF; i++) {c[$i] = i; if ($i in r) $i = r[$i]}
+            if (!("Name" in c && "SplitFrags" in c && "RealignedFrags" in c && "DiscordantFrags" in c)) exit 1
+            $1 = $1; print $0, "GeneNameUp", "GeneNameDown", "TotalFragments"; next}
+        {n = index($c["Name"], "_"); up = n ? substr($c["Name"], 1, n - 1) : $c["Name"]; down = n ? substr($c["Name"], n + 1) : ""
+            $1 = $1; print $0, up, down, $c["SplitFrags"] + $c["RealignedFrags"] + $c["DiscordantFrags"]}' \
+        "$tsv" > "$isofox_csv" || { rm -f "$isofox_csv"; isofox_csv=""; }
+fi
+
 # 6. INI
 ini=$out/$group.djerba.ini
-if ! APPENDIX=$APPENDIX "$SCRIPTS"/djerba_ini.sh -t "$tumor_dna" -n "$normal_dna" -c "${oncotree:-}" \
+if ! APPENDIX=$APPENDIX ISOFOX=$isofox_csv "$SCRIPTS"/djerba_ini.sh -t "$tumor_dna" -n "$normal_dna" -c "${oncotree:-}" \
         "$results" "$maf.gz" > "$ini" 2> "$out/warnings.txt"; then
     cat "$out/warnings.txt"
     fail "INI not written"

@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # Djerba INI of one oncoanalyser sample, to stdout.
 # Usage: djerba_ini.sh -t tumor -n normal [-c oncotree] <results_dir> <maf.gz> > sample.djerba.ini
-# Env: APPENDIX (required), STUDY, AUTHOR
+# Env: APPENDIX (required), STUDY, AUTHOR, ISOFOX
 
 set -euo pipefail
 
@@ -51,7 +51,7 @@ if [ -f "$gene_tsv" ]; then
 fi
 
 # TODO check Isofox 2 .tsv once hmf_djerba reads it
-isofox=$(ls "$results"/isofox/*.isf.pass_fusions.csv 2>/dev/null | head -1 || true)
+isofox=${ISOFOX:-$(ls "$results"/isofox/*.isf.pass_fusions.csv 2>/dev/null | head -1 || true)}
 if [ -z "$isofox" ] && ls "$results"/isofox/*.isf.pass_fusions.tsv >/dev/null 2>&1; then
     warn "Isofox 2.0 fusions (.tsv) are not read, no fusions in the report"
 fi
