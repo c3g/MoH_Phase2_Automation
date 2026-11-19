@@ -65,7 +65,7 @@ cat <<EOF
 [core]
 attributes = research
 author = $author
-report_id = $group
+report_id = $tumor
 report_version = 1
 
 [case_overview]
