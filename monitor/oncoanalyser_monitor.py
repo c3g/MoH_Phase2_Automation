@@ -17,7 +17,7 @@ logger = logging.getLogger(__name__)
 
 DIR_PATTERN = "/project/60007/MOH_PHASE2/MoHQ-*/MoHQ-*/results/pipeline_info"
 FILE_PATTERN = "execution_report_*.html"
-COMMAND = ["~/MoH_Phase2_Automation/analysis/onanalyser_post_run.sh"]   # parent folder appended as last argument
+CMD = ["~/MoH_Phase2_Automation/analysis/onanalyser_post_run.sh"]   # parent folder appended as last argument
 POLL_INTERVAL = 300       # how often watchdog stats files in watched dirs (s)
 RESCAN_INTERVAL = 600     # how often to glob for new/removed dirs (s)
 DEBOUNCE_SECONDS = 5
@@ -45,8 +45,9 @@ class ReportHandler(FileSystemEventHandler):
         group_dir = os.path.dirname(os.path.dirname(os.path.dirname(path)))
         logger.info(f"{time.strftime('%F %T')} triggering for {group_dir}")
         try:
-            COMMAND.append([group_dir])
-            subprocess.run(COMMAND, check=True)
+            CMD.append([group_dir])
+            command = " ".join(CMD)
+            subprocess.run(command, check=True)
         except subprocess.CalledProcessError as e:
             logger.info(f"Command failed ({e.returncode}) for {group_dir}")
 
