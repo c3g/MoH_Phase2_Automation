@@ -48,7 +48,12 @@ class ReportHandler(FileSystemEventHandler):
             CMD.append(group_dir)
             logger.info(f"{CMD}")
             command = " ".join(CMD)
-            subprocess.run(command, check=True)
+            subprocess.run(
+                    command,
+                    cwd=group_dir,
+                    shell=True,
+                    text=True,
+                    check=False)
         except subprocess.CalledProcessError as e:
             logger.info(f"Command failed ({e.returncode}) for {group_dir}")
 
