@@ -13,7 +13,7 @@
 set -eo pipefail
 umask 007
 
-SCRIPTS=~/MoH_Phase2_Automation/analysis
+SCRIPTS=~/MoH_Phase2_Automation
 PT_CLI="pt-cli --url-root https://project-tracking.c3g-app.dev-sd4h.ca/ --project MOH-Q"
 
 usage() {
@@ -82,7 +82,7 @@ fi
 echo "$status"
 
 # 2. UPDATE JSON
-if ! python3 "$SCRIPTS"/oncoanalyser2json.py -i "$run_dir" -t "$timestamp" -g "$group" -o "$json"; then
+if ! python3 "$SCRIPTS"/analysis/oncoanalyser2json.py -i "$run_dir" -t "$timestamp" -g "$group" -o "$json"; then
   echo "ERROR: oncoanalyser2json.py failed for $group"
   exit 1
 fi
@@ -100,4 +100,4 @@ echo "$group ($status) ingested. (post-oncoanalyser run)"
 # echo "$group delivered."
 
 # 6. RELAUNCH if the group has readsets this run did not use
-"$SCRIPTS"/oncoanalyser_launch.sh -g "$group"
+"$SCRIPTS"/analysis/oncoanalyser_launch.sh -g "$group"
