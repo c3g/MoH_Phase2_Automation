@@ -41,13 +41,15 @@ fail() {
 
 # rc 1: pt-cli failed, 2: unreadable reply, 3: not one live record
 oncotree_from_db() {
-    local reply found
+    local reply found n
     # TODO check route, field and sample name (CaseType?)
     reply=$($PT_CLI route "/project/MOH-Q/samples?json={\"sample_name\":\"$1\"}" 2>/dev/null) || return 1
     found=$(jq -r --arg s "$1" '[.DB_ACTION_OUTPUT[] | select(.name == $s and (.deleted | not) and (.deprecated | not))]
-        | "\(length) \(.[0].oncotree_code // .[0].sample_oncotree_code // "")"' <<< "$reply" 2>/dev/null) || return 2
-    [ "${found%% *}" = 1 ] || return 3
-    oncotree=$(tr -d '[:space:]' <<< "${found#* }")
+        | "\(length)\n\(.[0].oncotree_code // .[0].sample_oncotree_code // "")\n\(.[0].cancer_type // .[0].sample_cancer_type // "")"' \
+        <<< "$reply" 2>/dev/null) || return 2
+    { read -r n; read -r oncotree; read -r primary_cancer; } <<< "$found"
+    [ "$n" = 1 ] || return 3
+    oncotree=$(tr -d '[:space:]' <<< "$oncotree")
 }
 
 # 1. tumor/normal DNA from newest samplesheet (as check_oncoanalyser.sh)
@@ -61,6 +63,7 @@ normal_dna=$(awk -F, '$4=="normal" && $5=="dna" {print $3; exit}' "$samplesheet"
 
 # 2. OncoTree
 oncotree_source=none
+primary_cancer=""
 if [ "$oncotree_set" = true ]; then
     [ -n "$oncotree" ] && oncotree_source=option
 else
@@ -143,7 +146,7 @@ fi
 
 # 6. INI
 ini=$out/$group.djerba.ini
-if ! APPENDIX=$APPENDIX ISOFOX=$isofox_csv "$SCRIPTS"/djerba_ini.sh -t "$tumor_dna" -n "$normal_dna" -c "${oncotree:-}" \
+if ! APPENDIX=$APPENDIX ISOFOX=$isofox_csv "$SCRIPTS"/djerba_ini.sh -t "$tumor_dna" -n "$normal_dna" -c "${oncotree:-}" -p "$primary_cancer" \
         "$results" "$maf.gz" > "$ini" 2> "$out/warnings.txt"; then
     cat "$out/warnings.txt"
     fail "INI not written"

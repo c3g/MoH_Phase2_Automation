@@ -1,17 +1,18 @@
 #!/usr/bin/env bash
 # Djerba INI of one oncoanalyser sample, to stdout.
-# Usage: djerba_ini.sh -t tumor -n normal [-c oncotree] <results_dir> <maf.gz> > sample.djerba.ini
+# Usage: djerba_ini.sh -t tumor -n normal [-c oncotree] [-p primary_cancer] <results_dir> <maf.gz> > sample.djerba.ini
 # Env: APPENDIX (required), STUDY, AUTHOR, ISOFOX
 
 set -euo pipefail
 
-usage="Usage: $(basename "$0") -t tumor -n normal [-c oncotree] <results_dir> <maf.gz>"
-tumor="" normal="" oncotree=""
-while getopts 't:n:c:' OPTION; do
+usage="Usage: $(basename "$0") -t tumor -n normal [-c oncotree] [-p primary_cancer] <results_dir> <maf.gz>"
+tumor="" normal="" oncotree="" primary_cancer=""
+while getopts 't:n:c:p:' OPTION; do
     case "$OPTION" in
         t) tumor="$OPTARG" ;;
         n) normal="$OPTARG" ;;
         c) oncotree="$OPTARG" ;;
+        p) primary_cancer="$OPTARG" ;;
         *) echo "$usage" >&2; exit 1 ;;
     esac
 done
@@ -39,6 +40,7 @@ fi
 { ls "$results"/amber/ "$results"/cobalt/ 2>/dev/null || true; } | grep -q "^$normal\." || warn "$normal not in amber/ or cobalt/, check the normal id"
 
 [ -n "$oncotree" ] || warn "no OncoTree code"
+[ -n "$primary_cancer" ] || warn "no primary cancer, Unknown in the report"
 [ -f "$maf" ] || warn "$maf not found"
 [ -f "$results/chord/$tumor.chord.prediction.tsv" ] || warn "no CHORD output, no HRD in the report"
 
@@ -72,7 +74,7 @@ report_version = 1
 assay = WGS
 attributes = research
 assay_description = Whole genome sequencing (WGS)
-primary_cancer = Unknown
+primary_cancer = ${primary_cancer:-Unknown}
 site_of_biopsy = Unknown
 study = $study
 patient_study_id = $group
