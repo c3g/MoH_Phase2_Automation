@@ -15,6 +15,8 @@ umask 007
 
 SCRIPTS=~/MoH_Phase2_Automation
 PT_CLI="pt-cli --url-root https://project-tracking.c3g-app.dev-sd4h.ca/ --project MOH-Q"
+JENKINS_URL_FILE=~/.config/jenkins/notification_url.txt
+
 
 usage() {
   echo "Usage: $(basename "$0") -d <run_dir>"
@@ -46,13 +48,12 @@ log=$run_dir/.nextflow.log
 json=$run_dir/$group.oncoanalyser.json 
 out=$run_dir/$group.oncoanalyser_$timestamp.out
 
-
 # 1. CHECK THE RUN
 
 # NOT STARTED: no Slurm .out for the latest launch
 if [ ! -f "$out" ]; then
   echo "NOT STARTED: no $(basename "$out")."
-  exit 
+  exit 0
 fi
 
 # COMPLETED
@@ -91,6 +92,18 @@ fi
 source ~/project_tracking_cli/.venv/bin/activate
 $PT_CLI ingest analysis --input-json "$json"
 echo "$group ($status) ingested. (post-oncoanalyser run)"
+
+# trigger jenkins after failed run
+if [ "$status" = FAILED ]; then
+  if ! curl -sS \
+         -H "Content-Type: application/json" \
+         -X POST \
+         -d '{"group": "'"$group"'"}' \
+         $(cat "$JENKINS_URL_FILE"); then
+    echo "Jenkins notification failed for $group."
+  fi
+  exit 0
+fi
 
 # 4. DJERBA CALL  (TBD)
 # "$SCRIPTS"/analysis/djerba_report.sh -d "$run_dir" -g "$group"
