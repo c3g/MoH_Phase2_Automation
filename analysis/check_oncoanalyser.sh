@@ -6,6 +6,7 @@
 # status: based on WorkflowStats line in .nextflow.log
 # - COMPLETED: Nextflow ended the run itself and all main outputs exist.
 # In the log: "Pipeline completed successfully"; (Tasks that failed but worked on a retry are still counted)
+# - NOT STARTED: no <group>.oncoanalyser_<timestamp>.out for the latest launch.
 # - FAILED: Nextflow ended the run itself. In the log: "Pipeline completed with errors"
 # - RUNNING: no WorkflowStats line yet, and the log was written recently.
 # - STALLED: no WorkflowStats line, and the log has been quiet for more than 2 hours.
@@ -28,24 +29,24 @@ done
 [[ "$run_dir" ]] || usage
 group=${group:-$(basename "$run_dir")}   # default: run folder name
 
-# newest samplesheet, else old locations
+# newest samplesheet
 samplesheet=$(ls -1 "$run_dir"/samplesheets/*/"$group".samplesheet.csv 2>/dev/null | sort | tail -1)
-[ -z "$samplesheet" ] && samplesheet=$run_dir/$group.samplesheet.csv
-[ -f "$samplesheet" ] || samplesheet=$run_dir/samplesheet.csv
 
 results=$run_dir/results/$group
 log=$run_dir/.nextflow.log
+ts=$(basename "$(dirname "$samplesheet")")   #timestamp for latest run
+out=$run_dir/$group.oncoanalyser_$ts.out   
 
 # CHECK LOGS
 
 if [ ! -d "$run_dir" ] || [ ! -f "$samplesheet" ]; then
-  echo "ERROR: $run_dir or $samplesheet not found"
+  echo "ERROR: $run_dir or samplesheets/<timestamp>/$group.samplesheet.csv not found"
   exit 1
 fi
 
-# No log yet: the run has not started
-if [ ! -f "$log" ]; then
-  echo "NOT STARTED: no .nextflow.log"
+# No slurm .out for the latest launch
+if [ ! -f "$out" ]; then
+  echo "NOT STARTED: no $(basename "$out")"
   exit 1
 fi
 
