@@ -55,6 +55,11 @@ isofox=${ISOFOX:-$(ls "$results"/isofox/*.isf.pass_fusions.csv 2>/dev/null | hea
 if [ -z "$isofox" ] && ls "$results"/isofox/*.isf.pass_fusions.tsv >/dev/null 2>&1; then
     warn "Isofox 2.0 fusions (.tsv) are not read, no fusions in the report"
 fi
+# TODO remove when hmf_djerba handles an Isofox file without fusions
+if [ -n "$isofox" ] && [ -z "$(sed -n 2p "$isofox" 2>/dev/null)" ]; then
+    warn "no fusions in $isofox, no fusion section"
+    isofox=""
+fi
 
 cat <<EOF
 [core]
