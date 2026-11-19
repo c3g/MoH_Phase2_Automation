@@ -45,7 +45,7 @@ class ReportHandler(FileSystemEventHandler):
         group_dir = os.path.dirname(os.path.dirname(os.path.dirname(path)))
         logger.info(f"{time.strftime('%F %T')} triggering for {group_dir}")
         try:
-            CMD.append([group_dir])
+            CMD.append(group_dir)
             logger.info(f"{CMD}")
             command = " ".join(CMD)
             subprocess.run(command, check=True)
