@@ -23,7 +23,7 @@ author=${AUTHOR:-C3G}
 appendix=${APPENDIX:?APPENDIX not set}
 
 results=$(cd "$results" && pwd)
-sample=$(basename "$results")
+group=$(basename "$results")
 warn() { echo "WARNING: $*" >&2; }
 
 if [ -z "$tumor" ] || [ -z "$normal" ]; then
@@ -65,7 +65,7 @@ cat <<EOF
 [core]
 attributes = research
 author = $author
-report_id = $sample
+report_id = $group
 report_version = 1
 
 [case_overview]
@@ -75,8 +75,8 @@ assay_description = Whole genome sequencing (WGS)
 primary_cancer = Unknown
 site_of_biopsy = Unknown
 study = $study
-patient_study_id = $sample
-donor = $sample
+patient_study_id = $group
+donor = $group
 tumour_id = $tumor
 normal_id = $normal
 requisition_approved = 0000-00-00
