@@ -8,7 +8,7 @@ umask 007
 SCRIPTS=~/MoH_Phase2_Automation/report
 DJERBA_MODULES="mugqic/hmf_djerba/0.0.5 mugqic/wkhtmltopdf/0.12.6"
 SUPPORT=/project/60007/analyste_dev/software/djerba/supporting_files
-APPENDIX=/project/60007/julian3/djerba-oncoanalyser/apendice   # TODO move to final location
+APPENDIX=/project/60007/MOH_PHASE2/oncoanalyser_prod/djerba/appendix
 PCGR_MODULE=mugqic/pcgr/2.3.1   # vcf2maf and VEP 115
 REF_FASTA=/cvmfs/ref.mugqic/genomes/oncoanalyser/GRCh38_masked_exclusions_alts_hlas.fasta
 PT_CLI="pt-cli --url-root https://project-tracking.c3g-app.dev-sd4h.ca/ --project MOH-Q"
