@@ -105,8 +105,10 @@ if [ "$status" = FAILED ]; then
   exit 0
 fi
 
-# 4. DJERBA CALL  (TBD)
-# "$SCRIPTS"/analysis/djerba_report.sh -d "$run_dir" -g "$group"
+# 4. DJERBA REPORT -> <run_dir>/djerba/
+if ! "$SCRIPTS"/report/djerba_report.sh -d "$run_dir" -g "$group"; then
+  echo "WARNING: Djerba report failed for $group"
+fi
 
 # 5. DELIVERY
 # "$SCRIPTS"/delivery/oncoanalyser_delivery.sh -i "$run_dir" -g "$group"
