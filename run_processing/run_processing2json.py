@@ -125,7 +125,7 @@ def jsonify_run_processing(input_run_folder, fms_json, lanes_json, output, lanes
 
     sheet_id = "1yqWQQp3Qqs_9HpfKc6-fIzwPu6uRiZZahWUo4mbrHRU"
     gid = "473627083"
-    url = f"https://docs.google.com/spreadsheets/d/{sheet_id}/export?format=csv&gid={gid}"
+    url = f"https://docs.google.com/spreadsheets/d/{sheet_id}/gviz/tq?tqx=out:csv&gid={gid}"
     df = pd.read_csv(url)
 
     for _, lane_json in lanes_json.items():
