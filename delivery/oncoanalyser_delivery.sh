@@ -38,7 +38,7 @@ fi
 # Source: Cardinal
 SRC_PLATFORM="cardinal"
 SRC_EP="ee0ec49b-7bf7-4b25-9030-2e19c03476ca" # from MoH1 globus_collections.json
-SRC_BASE_PATH="/project/60007/MOH_PHASE2"
+SRC_BASE_PATH="/project/60007/MOH_PHASE2/MAIN"
 
 # Destination: the bucket
 case "$destination" in

@@ -49,8 +49,8 @@ SRC_BASE_PATH="/nb/Research/freezeman-processing"
 runfolder=$(jq -r '.run_name' "$run_processing_json")
 
 # Temporary File location, you may want to change it to your scratch for easier clean up.
-TRANSFER_JSON_DIR='/lb/project/mugqic/projects/mjaniak/MOH_Phase2/Transfer_json'
-TEMP='/lb/project/mugqic/projects/mjaniak/MOH_Phase2/TEMP'
+TRANSFER_JSON_DIR='/lb/scratch/c3g-processing/MOH/Transfer_json'
+TEMP='/lb/scratch/c3g-processing/MOH/TEMP'
 TIMESTAMP=$(date +%FT%H.%M.%S)
 LOGFILE="${runfolder}_${TIMESTAMP}_${destination}_transfer.log"
 LISTFILE="${runfolder}_${TIMESTAMP}_${destination}_transfer.list"

@@ -15,7 +15,7 @@ from watchdog.observers.polling import PollingObserver
 logging.basicConfig(format='%(levelname)s: %(asctime)s - %(message)s', level=logging.INFO)
 logger = logging.getLogger(__name__)
 
-DIR_PATTERN = "/project/60007/MOH_PHASE2/MoHQ-*/MoHQ-*/results/pipeline_info"
+DIR_PATTERN = "/project/60007/MOH_PHASE2/MAIN/MoHQ-*/MoHQ-*/results/pipeline_info"
 FILE_PATTERN = "execution_report_*.html"
 CMD = "~/MoH_Phase2_Automation/analysis/oncoanalyser_post_run.sh -d"   # parent folder appended as last argument
 POLL_INTERVAL = 300       # how often watchdog stats files in watched dirs (s)
