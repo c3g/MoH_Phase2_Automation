@@ -14,7 +14,6 @@ from datetime import datetime, timedelta
 logging.basicConfig(format='%(levelname)s: %(asctime)s - %(message)s', level=logging.INFO)
 logger = logging.getLogger(__name__)
 
-# need cleanup in the end -------------------------------------------------------------------------------------------------------------------------
 ALLOWED_FLAGS = {"PASS", "WARNING", "FAILED", "MISSING", "NOT_APPLICABLE"} # for metrics
 UNFLAGGED_DELIVERABLE_FLAG = "NOT_APPLICABLE"   # to confirm
 DATE_FMT = "%Y-%m-%d %H:%M:%S"
@@ -531,18 +530,28 @@ def extract_bamtools(group, sample, results_dir):
         {"metric_name": "median_coverage", "metric_value": summary["MedianCoverage"], "metric_flag": None, "metric_deliverable": True},
     ]
 
-    # frag_length.tsv: mean insert size, computed from the histogram (length, count)
+    # frag_length.tsv: mean + median insert size, computed from the histogram (length, count)
     if os.path.exists(frag_file):
-        total = 0
-        weighted = 0
+        hist = []
         with open(frag_file, encoding='utf-8') as f:
             next(f)  # skip header
             for line in f:
                 length, count = line.rstrip('\n').split('\t')
-                total += int(count)
-                weighted += int(length) * int(count)
+                hist.append((int(length), int(count)))
+        hist.sort()
+        total = sum(count for _, count in hist)
+        weighted = sum(length * count for length, count in hist)
+
+        # median = first length where the running count reaches half the reads
+        running = 0
+        for median, count in hist:
+            running += count
+            if running >= total / 2:
+                break
+        median_flag = "FAILED" if median < 150 else "WARNING" if median < 300 else "PASS"   # phase 1 / run processing thresholds
 
         metrics.append({"metric_name": "mean_insert_size", "metric_value": f'{weighted / total:.1f}', "metric_flag": None, "metric_deliverable": True})
+        metrics.append({"metric_name": "median_insert_size", "metric_value": str(median), "metric_flag": median_flag, "metric_deliverable": True})
     else:
         logger.warning(f"missing {frag_file}")
 
