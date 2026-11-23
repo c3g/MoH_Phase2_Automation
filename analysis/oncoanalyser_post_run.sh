@@ -71,8 +71,8 @@ if grep -q "Pipeline completed successfully" "$log"; then
 # FAILED
 elif grep -q "Pipeline completed with errors" "$log"; then
   status=FAILED
-  failed_step=$(grep "Error executing process" "$log" | tail -1 | sed 's/.*Error executing process > //')
-  reason=$(grep -A1 "^Caused by:" "$log" | grep -v -e "^Caused by:" -e "^--" | tail -1 | sed 's/^ *//')
+  failed_step=$(grep "Error executing process" "$log" | tail -1 | sed 's/.*Error executing process > //' || true)
+  reason=$(grep -A1 "^Caused by:" "$log" | grep -v -e "^Caused by:" -e "^--" | tail -1 | sed 's/^ *//' || true)
   echo "  failed step: $failed_step"
   echo "  reason:      $reason"
 
