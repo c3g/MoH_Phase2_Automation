@@ -508,12 +508,22 @@ def extract_purple(group, sample, results_dir):
         values = f.readline().rstrip('\n').split('\t')
     purity_tsv = dict(zip(header, values))
 
-    # metrics - for now: qc status (with flag), ploidy, sex_check (purity, contamination etc. come from QSEE)
+    # metrics: qc status (with flag), ploidy, sex_check, purity_gate.
+    # QSEE still reports purity (with PURPLE's own 0.20 WARN) and contamination;
+    # purity_gate is the separate consortium gate (MOHCCN: purity >= 30%).
     metrics = [
         {"metric_name": "purple_qc_status", "metric_value": qc["QCStatus"], "metric_flag": status_flag(qc["QCStatus"]), "metric_deliverable": True},
         {"metric_name": "ploidy", "metric_value": purity_tsv["ploidy"], "metric_flag": None, "metric_deliverable": True},
         {"metric_name": "sex_check", "metric_value": f'{qc["AmberGender"]}/{qc["CobaltGender"]}', "metric_flag": None, "metric_deliverable": True},
     ]
+
+    # purity_gate: < 0.30 -> WARNING, else PASS
+    try:
+        purity_flag = "WARNING" if float(purity_tsv["purity"]) < 0.30 else "PASS"
+    except (KeyError, ValueError):
+        purity_flag = "MISSING"
+    metrics.append({"metric_name": "purity_gate", "metric_value": purity_tsv.get("purity"),
+                    "metric_flag": purity_flag, "metric_deliverable": True})
     return metrics
 
 
@@ -608,13 +618,22 @@ def extract_isofox(group, sample, results_dir):
         values = f.readline().rstrip('\n').split('\t')
     summary = dict(zip(header, values))
 
+    # total_fragments
+    # Isofox counts genic fragments only (lower than sequenced clusters)  
+    # the real gate is raw_clusters (run processing).
+    try:
+        fragments_flag = "WARNING" if float(summary["TotalFragments"]) < 80_000_000 else "PASS"
+    except (KeyError, ValueError):
+        fragments_flag = "MISSING"
+
     metrics = [
         {"metric_name": "isofox_qc_status", "metric_value": summary["QcStatus"], "metric_flag": status_flag(summary["QcStatus"]), "metric_deliverable": True},
-        {"metric_name": "total_fragments", "metric_value": summary["TotalFragments"], "metric_flag": None, "metric_deliverable": True},
+        {"metric_name": "total_fragments", "metric_value": summary.get("TotalFragments"), "metric_flag": fragments_flag, "metric_deliverable": True},
         {"metric_name": "duplicate_fragments", "metric_value": summary["DuplicateFragments"], "metric_flag": None, "metric_deliverable": True},
         {"metric_name": "spliced_fragment_perc", "metric_value": summary["SplicedFragmentPerc"], "metric_flag": None, "metric_deliverable": True},
         {"metric_name": "chimeric_fragment_perc", "metric_value": summary["ChimericFragmentPerc"], "metric_flag": None, "metric_deliverable": True},
         {"metric_name": "spliced_gene_count", "metric_value": summary["SplicedGeneCount"], "metric_flag": None, "metric_deliverable": True},
+        {"metric_name": "rna_fragment_length_median", "metric_value": summary.get("FragLength50th"), "metric_flag": None, "metric_deliverable": True},
     ]
     return metrics
 
