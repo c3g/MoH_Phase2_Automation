@@ -78,7 +78,7 @@ PROCESSES = { # processes incldue all the unique job names in the execution trac
     "PEACH":                ((N,), "peach"),
     "ISOFOX":               ((R,), "isofox"),                # files named after the tumor DNA
 }
-# processes that only run when the samplesheet has RNA --------------------------------------------------CONFIRM
+# processes that only run when the samplesheet has RNA (checked against onco 3.0.0)
 RNA_PROCESSES = {
     "STAR_ALIGN", "SAMTOOLS_SORT", "GATK4_MARKDUPLICATES", "ISOFOX",
     "SAGE_APPEND_GERMLINE", "SAGE_APPEND_SOMATIC",
@@ -218,12 +218,12 @@ def main():
 
 def jsonify_oncoanalyser_metrics(run_dir, group, results_dir, output_json, readset, sample_id, role, tumor_dna):
     """
-    Update ONE readset of the project tracking json (at launch, mid-run or after the run):
+    Jobs of ONE readset for the project tracking json (called by oncoanalyser2json.py once the run has started, in practice from post_run):
     - the head job oncoanalyser.<group> (status from .nextflow.log + ORANGE, like the post-run; times from traces + .nextflow/history)
     - one job per process this sample owns (status + times from the latest Nextflow trace)
     - QC metrics on the qsee, bamtools, purple, isofox jobs
-    - result files (+ md5), once the run is COMPLETED
-    - operation_status = head job status
+    - result files (+ md5) of the COMPLETED jobs, once the run has ended (COMPLETED or FAILED)
+    (the manual main() also sets operation_status = head job status)
     """
 
     has_rna = run_has_rna(find_samplesheet(run_dir, group))
@@ -441,13 +441,12 @@ def job_files(process, sample_id, group, results_dir):
         paths = [p for p in paths if os.path.basename(p).startswith(sample_id)]
     return [{
         "file_name": os.path.basename(p),
-        "location_uri": f"cardinal://{os.path.abspath(p)}", # ---------------------------------------------------------------------------------------------------------------confirm
+        "location_uri": f"cardinal://{os.path.abspath(p)}",  # same cardinal://<full path> format as transfer2json.py
         "file_md5sum": md5sum(p),
         "file_deliverable": True,
     } for p in paths]
 
-# currently 
-# group:  group_id from the samplesheet (e.g. MoHQ-CQ-36-94).
+# group:  group_id from the samplesheet = run folder name (e.g. MoHQ-CQ-36-94_G0).
 #   onco writes all results of a run to results/<group>/. One group = one casetype/tumor (+ its normal, + RNA if any).
 # IMPORTANT: some RNA results are named after the tumor DNA
 
