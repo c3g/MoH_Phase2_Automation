@@ -128,6 +128,12 @@ def parse_arguments():
         required=True,
         help="sample_id of the tumor DNA of the run (QSEE and ISOFOX files are named after it)."
         )
+    parser.add_argument(
+        '--ffpe',
+        choices=["yes", "no"],
+        default=None,
+        help="FFPE status of this readset's sample. Not given = treated as not FFPE."
+        )
     return parser.parse_args()
 
 # for now: same rule as post run script
@@ -211,12 +217,13 @@ def main():
     group = os.path.basename(os.path.normpath(args.input))
     results_dir = os.path.join(args.input, "results")
     jobs = jsonify_oncoanalyser_metrics(args.input, group, results_dir, args.json,
-                                        args.readset, args.sample, args.sample_type, args.tumor_sample)
+                                        args.readset, args.sample, args.sample_type, args.tumor_sample,
+                                        ffpe={"yes": True, "no": False}.get(args.ffpe))   # not given FOR NOW: None
     add_jobs(json_output, args.sample, [args.readset], jobs)
     json_output["operation_status"] = jobs[0]["job_status"]
     save_json_file(args.json, json_output)
 
-def jsonify_oncoanalyser_metrics(run_dir, group, results_dir, output_json, readset, sample_id, role, tumor_dna):
+def jsonify_oncoanalyser_metrics(run_dir, group, results_dir, output_json, readset, sample_id, role, tumor_dna, ffpe=None):
     """
     Jobs of ONE readset for the project tracking json (called by oncoanalyser2json.py once the run has started, in practice from post_run):
     - the head job oncoanalyser.<group> (status from .nextflow.log + ORANGE, like the post-run; times from traces + .nextflow/history)
@@ -224,6 +231,7 @@ def jsonify_oncoanalyser_metrics(run_dir, group, results_dir, output_json, reads
     - QC metrics on the qsee, bamtools, purple, isofox jobs
     - result files (+ md5) of the COMPLETED jobs, once the run has ended (COMPLETED or FAILED)
     (the manual main() also sets operation_status = head job status)
+    ffpe: True / False = FFPE status of this readset's sample; None (default) = not given, treated as not FFPE
     """
 
     has_rna = run_has_rna(find_samplesheet(run_dir, group))
@@ -253,7 +261,7 @@ def jsonify_oncoanalyser_metrics(run_dir, group, results_dir, output_json, reads
         if done("QSEE"):
             metrics["QSEE"] = extract_qsee(group, tumor_dna, results_dir).get(sample_id, [])
         if done("BAMTOOLS"):
-            metrics["BAMTOOLS"] = extract_bamtools(group, sample_id, results_dir)
+            metrics["BAMTOOLS"] = extract_bamtools(group, sample_id, results_dir, ffpe)
     if role == T and done("PURPLE"):
         metrics["PURPLE"] = extract_purple(group, sample_id, results_dir)
     if role == R and done("ISOFOX"):
@@ -540,14 +548,12 @@ def status_flag(status):
     return None
 
 
-def extract_bamtools(group, sample, results_dir):
+def extract_bamtools(group, sample, results_dir, ffpe=None):
     """
     Bamtools metrics that QSEE does not report.
+    ffpe: True / False / None (not given = not FFPE). uses insert_size_flags().
     Return: list
     """
-
-    #todo: add flags 
-
 
     bamtools_dir = os.path.join(results_dir, group, 'bamtools', sample)
     summary_file = os.path.join(bamtools_dir, f'{sample}.bam_metric.summary.tsv')
@@ -590,14 +596,23 @@ def extract_bamtools(group, sample, results_dir):
             running += count
             if running >= total / 2:
                 break
-        median_flag = "FAILED" if median < 150 else "WARNING" if median < 300 else "PASS"   # phase 1 / run processing thresholds
+        mean = weighted / total
+        mean_flag, median_flag = insert_size_flags(mean, median, ffpe)
 
-        metrics.append({"metric_name": "mean_insert_size", "metric_value": f'{weighted / total:.1f}', "metric_flag": None, "metric_deliverable": True})
+        metrics.append({"metric_name": "mean_insert_size", "metric_value": f'{mean:.1f}', "metric_flag": mean_flag, "metric_deliverable": True})
         metrics.append({"metric_name": "median_insert_size", "metric_value": str(median), "metric_flag": median_flag, "metric_deliverable": True})
     else:
         logger.warning(f"missing {frag_file}")
 
     return metrics
+
+def insert_size_flags(mean, median, ffpe=None):
+    # DNA insert size flags to mean_flag, median_flag
+    # mean < 150 WARNING, else PASS
+    # median: FFPE -> no flag; not FFPE or unknown < 250 WARNING, else PASS
+    mean_flag = "WARNING" if mean < 150 else "PASS"
+    median_flag = None if ffpe else ("WARNING" if median < 250 else "PASS")
+    return mean_flag, median_flag
 
 def extract_isofox(group, sample, results_dir):
     """
