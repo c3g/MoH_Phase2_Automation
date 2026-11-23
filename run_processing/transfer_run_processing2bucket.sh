@@ -86,7 +86,7 @@ done
 module load mugqic/globus-cli/3.24.0
 # Now using Robot account to do the transfer
 ENV_DIR="$HOME/.config/globus_cli"
-ENV_FILE="$ENV_DIR/Abacus_to_Bucket.sh"
+ENV_FILE="$ENV_DIR/Abacus_to_BQC19moh-q-testMOH-Q.sh"
 if [[ ! -f "$ENV_FILE" ]]; then
     echo "ERROR: Expected environment file '$ENV_FILE' not found." >&2
 exit 1
