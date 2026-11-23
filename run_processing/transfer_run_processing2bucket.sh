@@ -77,7 +77,7 @@ jq --arg lane "$lane" -r '
   "\($institution) \($specimen) \($cohort) \($sample_name) \($readset_name) \(.location_uri | sub("^abacus://"; ""))"
   ' "$run_processing_json" | while read -r institution specimen cohort sample_name readset_name file; do
   file_basename=$(basename "$file")
-  echo "${file#"$SRC_BASE_PATH"} ${DEST_LOC#"$DEST_BASE_PATH"}/$institution/$cohort/$specimen/$file_basename" >> "$TEMP/$LISTFILE"
+  echo "${file#"$SRC_BASE_PATH"} $institution/$cohort/$specimen/$file_basename" >> "$TEMP/$LISTFILE"
   echo "${readset_name} $file $DEST_LOC/$institution/$cohort/$specimen/$file_basename" >> "$TEMP/$LISTFILE_FULLPATH"
   echo "$file,$sample_name/$file_basename" >> "$TEMP/$LOGFILE"
 done
