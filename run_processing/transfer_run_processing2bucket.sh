@@ -40,10 +40,10 @@ fi
 #destination_lowercase="${destination,,}"
 #DEST_EP=$(jq -r --arg dest "$destination_lowercase" '.robot_endpoints[$dest].uuid' "$ROBOT_EP")
 DEST_EP="a0fe4c23-88b1-4eb4-8803-a61e95512a68"
-DEST_LOC="MOH-Q"
-destination="c3g-data-repos"
+DEST_LOC="moh-q-test/MOH-Q"
+destination="BQC19"
 # Abacus Endpoint
-ABA_EP="01389a74-7832-499b-8226-c6ff10d69731"
+ABA_EP="a461072d-0eb1-4682-aeba-812d7f00823a"
 SRC_BASE_PATH="/nb/Research/freezeman-processing"
 
 runfolder=$(jq -r '.run_name' "$run_processing_json")
