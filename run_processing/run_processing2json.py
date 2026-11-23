@@ -87,6 +87,7 @@ def parse_samplesheet(df, sample_name):
     cancer_type = sample_df["OncoTree Code"].values[0].split(" (")[0]
     tumor = True if sample_df["Type"].values[0] == "DT" or sample_df["Type"].values[0] == "RT" else False
     alias = sample_df["Sample"].values[0]
+    ffpe = True if sample_df["FFPE"] == "F" else False
     if tumor == True:
         index = sample_df["Index"].values[0] if sample_df["Index"].values[0] >=1 else 0
         group = f"{specimen}-T{index}"
@@ -94,7 +95,7 @@ def parse_samplesheet(df, sample_name):
         indexes = df.loc[df['Case'] == specimen]['Index'].fillna("0").drop_duplicates().values
         group = [f"{specimen}-T{index}" for index in indexes]
 
-    return specimen, cohort, case_type, oncotree_code, cancer_type, tumor, alias, group
+    return specimen, cohort, case_type, oncotree_code, cancer_type, tumor, alias, ffpe, group
 
 def jsonify_run_processing(input_run_folder, fms_json, lanes_json, output, lanes, samples, nucleic_acid_type):
     """
@@ -133,7 +134,7 @@ def jsonify_run_processing(input_run_folder, fms_json, lanes_json, output, lanes
             sample_name = readset["sample_name"]
             if sample_name.startswith(("MoHQ-", "MOHQ-")) and lane_json['lane'] in lanes and sample_name in samples:
                 # instead of parsing specimen, cohort, and institution from sample name, query google sheet with metadata
-                specimen, cohort, case_type, oncotree_code, cancer_type, tumor, alias, group = parse_samplesheet(df, sample_name)
+                specimen, cohort, case_type, oncotree_code, cancer_type, tumor, alias, ffpe, group = parse_samplesheet(df, sample_name)
                 # Check if the specimen is already in json_output["specimen"]
                 specimen_names = [spec["specimen_name"] for spec in json_output["specimen"]]
                 if specimen in specimen_names:
@@ -219,7 +220,11 @@ def jsonify_run_processing(input_run_folder, fms_json, lanes_json, output, lanes
                         raw_mean_coverage_flag = get_flag(raw_mean_coverage)
                         raw_mean_coverage, raw_mean_coverage_flag = check_na(raw_mean_coverage, raw_mean_coverage_flag)
                         if raw_mean_coverage_flag == "PASS" and readset["library_type"] != "RNASeq":
-                            raw_mean_coverage_flag = dna_raw_mean_coverage_check(sample_name, raw_mean_coverage, sample_name.endswith("T"))
+                            raw_mean_coverage_flag = dna_raw_mean_coverage_check(sample_name, raw_mean_coverage, tumor)
+
+                        raw_percent_bases_over_q30 = run_v.get("qc", {}).get("pct_q30_bases")
+                        raw_percent_bases_over_q30_flag = percent_bases_over_q30_check(sample_name, raw_percent_bases_over_q30) if raw_percent_bases_over_q30 else "MISSING"
+                        raw_percent_bases_over_q30, raw_percent_bases_over_q30_flag = check_na(raw_percent_bases_over_q30, raw_percent_bases_over_q30_flag)
                         metric_json = [
                             {
                                 "metric_name": "raw_reads_count",
@@ -246,6 +251,16 @@ def jsonify_run_processing(input_run_folder, fms_json, lanes_json, output, lanes
                                 "metric_name": "raw_mean_coverage",
                                 "metric_value": raw_mean_coverage,
                                 "metric_flag": raw_mean_coverage_flag
+                                },
+                            {
+                                "metric_name": "raw_percent_bases_over_q30",
+                                "metric_value": raw_percent_bases_over_q30,
+                                "metric_flag": raw_percent_bases_over_q30_flag
+                                },
+                            {
+                                "metric_name": "species_check",
+                                "metric_value": species_check,
+                                "metric_flag": species_check_flag
                                 }
                             ]
 
@@ -333,8 +348,8 @@ def rna_raw_reads_count_check(sample, value):
         logger.warning(f"Missing 'nb_reads' value for {sample} from json.")
     elif int(value)<80000000:
         ret = "FAILED"
-    elif int(value)<100000000:
-        ret = "WARNING"
+    #elif int(value)<100000000:
+    #    ret = "WARNING"
     else:
         ret = "PASS"
     return ret
@@ -365,6 +380,17 @@ def median_insert_size_check(sample, value):
         ret = "PASS"
     return ret
 
+def percent_bases_over_q30_check(sample, value):
+    """ Percent bases over q30 metric check """
+    if not value:
+        ret = "MISSING"
+        logger.warning(f"Missing 'percent_bases_over_q30' valuc for {sample} from json.")
+    elif float(value)<75:
+        ret = "WARNING"
+    else:
+        ret = "PASS"
+    return ret
+        
 def compute_md5(file_path, chunk_size=8 * 1024 * 1024):  # 8MB chunks
     """Compute or retrieve MD5 checksum of a file using EAFP style."""
     md5_file_path = f"{file_path}.md5"
