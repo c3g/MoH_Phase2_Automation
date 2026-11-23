@@ -26,7 +26,7 @@ NEXTFLOW_TO_DB_STATUS = { # for tool jobs
     "FAILED": "FAILED",
     "ABORTED": "CANCELLED",
 }
-HISTORY_TO_DB_STATUS = {"OK": "COMPLETED", "ERR": "FAILED", "-": "RUNNING"} # for head job
+# head job status: see run_status() (same rule as oncoanalyser_post_run.sh)
 
 # # # HOW THE RESULTS FOLDER IS SCTRUCTURED and linking it to job/process name # # #
 # some results are per sample (alignments etc) and some are pair-level (amber etc)
@@ -130,6 +130,34 @@ def parse_arguments():
         )
     return parser.parse_args()
 
+# for now: same rule as post run script
+def run_status(run_dir, group, tumor_dna):
+    """
+    Run status, SAME RULE AS oncoanalyser_post_run.sh:
+    COMPLETED = log says completed successfully AND the ORANGE pdf exists
+    FAILED    = log says completed with errors, or success without ORANGE
+    RUNNING   = no end line yet (running, killed or stuck)
+    """
+    log = os.path.join(run_dir, '.nextflow.log')
+    if not os.path.exists(log):
+        return "PENDING"
+    success = errors = False
+    with open(log, encoding='utf-8', errors='replace') as f:
+        for line in f:
+            if "Pipeline completed successfully" in line:   # also matches "..., but with errored process(es)" (ignored LILAC)
+                success = True
+            elif "Pipeline completed with errors" in line:
+                errors = True
+    if success:
+        orange = os.path.join(run_dir, 'results', group, 'orange', f'{tumor_dna}.orange.pdf')
+        if os.path.isfile(orange) and os.path.getsize(orange) > 0:
+            return "COMPLETED"
+        logger.warning(f"log says completed but {orange} is missing: FAILED")
+        return "FAILED"
+    if errors:
+        return "FAILED"
+    return "RUNNING"
+
 def load_json_file(path):
     """Load a json file. Return None if missing"""
     try:
@@ -191,7 +219,7 @@ def main():
 def jsonify_oncoanalyser_metrics(run_dir, group, results_dir, output_json, readset, sample_id, role, tumor_dna):
     """
     Update ONE readset of the project tracking json (at launch, mid-run or after the run):
-    - the head job oncoanalyser.<group> (status + times from .nextflow/history)
+    - the head job oncoanalyser.<group> (status from .nextflow.log + ORANGE, like the post-run; times from traces + .nextflow/history)
     - one job per process this sample owns (status + times from the latest Nextflow trace)
     - QC metrics on the qsee, bamtools, purple, isofox jobs
     - result files (+ md5), once the run is COMPLETED
@@ -199,7 +227,7 @@ def jsonify_oncoanalyser_metrics(run_dir, group, results_dir, output_json, reads
     """
 
     has_rna = run_has_rna(find_samplesheet(run_dir, group))
-    head = head_job(run_dir, group)        # updates the head job made at launch
+    head = head_job(run_dir, group, tumor_dna)        # updates the head job made at launch
     trace_rows = read_traces(results_dir)
 
     # files for each COMPLETED job, once the run has stopped (mid-run outputs may still be copying)
@@ -265,12 +293,15 @@ def first_task_start(results_dir):
     return min(starts, default=None)
 
 
-def head_job(run_dir, group): # -------for now , parsed from history
+def head_job(run_dir, group, tumor_dna):
     """
     Head job oncoanalyser.<group> (same name as oncoanalyser2json.py).
-    start = first task that ran, over all launches (traces); status + stop = latest launch (.nextflow/history).
+    status = run_status() (same rule as oncoanalyser_post_run.sh)
+    start  = first task that ran, over all launches (traces)
+    stop   = end of the latest launch (.nextflow/history)
     """
-    job = {"job_name": f"oncoanalyser.{group}", "job_start": None, "job_stop": None, "job_status": "PENDING"}
+    job = {"job_name": f"oncoanalyser.{group}", "job_start": None, "job_stop": None,
+           "job_status": run_status(run_dir, group, tumor_dna)}
 
     history = os.path.join(run_dir, '.nextflow', 'history')
     if not os.path.exists(history):
@@ -288,8 +319,7 @@ def head_job(run_dir, group): # -------for now , parsed from history
     #these next lines would be useful if we want the start to be the first try of this run
     # same_run = [launch for launch in launches if launch[6] == last[6]]
     #job["job_start"] = same_run[0][0][:19]
-    job["job_status"] = HISTORY_TO_DB_STATUS.get(last[3], "RUNNING") # default is running
-    if last[1] != "-":
+    if last[1] != "-" and job["job_status"] != "RUNNING":   # no stop time while still running
         end = datetime.strptime(last[0][:19], DATE_FMT) + parse_duration(last[1])
         job["job_stop"] = end.strftime(DATE_FMT)
     return job
@@ -378,13 +408,13 @@ def add_jobs(json_output, sample_id, readsets, jobs):
                 readset["job"].append(job)
 
 def set_db_flags(metrics):
-    """Make flags DB-safe: unknown flag -> None (warning), deliverable without a flag -> UNFLAGGED_DELIVERABLE_FLAG."""
+    """Make flags DB-safe: unknown flag -> None (warning), no flag -> UNFLAGGED_DELIVERABLE_FLAG (the DB rejects a null flag)."""
     for m in metrics:
         if m["metric_flag"] not in ALLOWED_FLAGS:
             if m["metric_flag"] is not None:   # None = no threshold.  anything else= unexpected
                 logger.warning(f"{m['metric_name']}: unknown flag {m['metric_flag']}, set to None")
             m["metric_flag"] = None
-        if m["metric_deliverable"] and m["metric_flag"] is None:
+        if m["metric_flag"] is None:           # any metric, deliverable or not: never send a null flag
             m["metric_flag"] = UNFLAGGED_DELIVERABLE_FLAG
     return metrics
 
@@ -540,6 +570,9 @@ def extract_bamtools(group, sample, results_dir):
                 hist.append((int(length), int(count)))
         hist.sort()
         total = sum(count for _, count in hist)
+        if total == 0:
+            logger.warning(f"empty {frag_file}")
+            return metrics
         weighted = sum(length * count for length, count in hist)
 
         # median = first length where the running count reaches half the reads
