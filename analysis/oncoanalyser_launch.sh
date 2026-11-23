@@ -90,7 +90,7 @@ for GROUP in $group; do
         break
     fi
 
-    CASE="${GROUP%_*}"
+    CASE="${GROUP%-T*}"
     ANALYSIS_DIR=${MOH_DIR}/MAIN/${CASE}/${GROUP}
     mkdir -p ${ANALYSIS_DIR}/tmp
     ret=$(pt-cli --url-root https://project-tracking.c3g-app.dev-sd4h.ca/ --project MOH-Q digest oncoanalyser_samplesheet --sample_group_name $GROUP --endpoint cardinal -o ${ANALYSIS_DIR}/tmp 2>&1 || true)
