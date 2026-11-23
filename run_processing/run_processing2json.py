@@ -87,7 +87,7 @@ def parse_samplesheet(df, sample_name):
     cancer_type = sample_df["OncoTree Code"].values[0].split(" (")[0]
     tumor = True if sample_df["Type"].values[0] == "DT" or sample_df["Type"].values[0] == "RT" else False
     alias = sample_df["Sample"].values[0]
-    ffpe = True if sample_df["FFPE"] == "F" else False
+    ffpe = True if sample_df["FFPE"].values[0] == "F" else False
     if tumor == True:
         index = sample_df["Index"].values[0] if sample_df["Index"].values[0] >=1 else 0
         group = f"{specimen}-T{index}"
@@ -225,6 +225,10 @@ def jsonify_run_processing(input_run_folder, fms_json, lanes_json, output, lanes
                         raw_percent_bases_over_q30 = run_v.get("qc", {}).get("pct_q30_bases")
                         raw_percent_bases_over_q30_flag = percent_bases_over_q30_check(sample_name, raw_percent_bases_over_q30) if raw_percent_bases_over_q30 else "MISSING"
                         raw_percent_bases_over_q30, raw_percent_bases_over_q30_flag = check_na(raw_percent_bases_over_q30, raw_percent_bases_over_q30_flag)
+
+                        blast_1st_hit = run_v.get("blast", {}).get("1st_hit")
+                        blast_1st_hit_flag = blast_1st_hit_check(sample_name, blast_1st_hit)
+                        blast_1st_hit, blast_1st_hit_flag = check_na(blast_1st_hit, blast_1st_hit_flag)
                         metric_json = [
                             {
                                 "metric_name": "raw_reads_count",
@@ -258,9 +262,9 @@ def jsonify_run_processing(input_run_folder, fms_json, lanes_json, output, lanes
                                 "metric_flag": raw_percent_bases_over_q30_flag
                                 },
                             {
-                                "metric_name": "species_check",
-                                "metric_value": species_check,
-                                "metric_flag": species_check_flag
+                                "metric_name": "blast_1st_hit",
+                                "metric_value": blast_1st_hit,
+                                "metric_flag": blast_1st_hit_flag
                                 }
                             ]
 
@@ -387,6 +391,17 @@ def percent_bases_over_q30_check(sample, value):
         logger.warning(f"Missing 'percent_bases_over_q30' valuc for {sample} from json.")
     elif float(value)<75:
         ret = "WARNING"
+    else:
+        ret = "PASS"
+    return ret
+
+def blast_1st_hit_check(sample, value):
+    """ Check for blast results to confirm human. """
+    if not value:
+        ret = "MISSING"
+        logger.warning(f"Missing 'blast_1st_hit' valuc for {sample} from json.")
+    elif "Homo_sapiens" not in value:
+        ret = "FAIL"
     else:
         ret = "PASS"
     return ret
