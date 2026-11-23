@@ -516,13 +516,12 @@ def extract_purple(group, sample, results_dir):
         values = f.readline().rstrip('\n').split('\t')
     purity_tsv = dict(zip(header, values))
 
-    # metrics: qc status (with flag), ploidy, sex_check, purity_gate.
+    # metrics: qc status (with flag), ploidy, purity_gate.
     # QSEE still reports purity (with PURPLE's own 0.20 WARN) and contamination;
     # purity_gate is the separate consortium gate (MOHCCN: purity >= 30%).
     metrics = [
         {"metric_name": "purple_qc_status", "metric_value": qc["QCStatus"], "metric_flag": status_flag(qc["QCStatus"]), "metric_deliverable": True},
         {"metric_name": "ploidy", "metric_value": purity_tsv["ploidy"], "metric_flag": None, "metric_deliverable": True},
-        {"metric_name": "sex_check", "metric_value": f'{qc["AmberGender"]}/{qc["CobaltGender"]}', "metric_flag": None, "metric_deliverable": True},
     ]
 
     # purity_gate: < 0.30 -> WARNING, else PASS
