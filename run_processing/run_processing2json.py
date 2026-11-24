@@ -116,7 +116,7 @@ def jsonify_run_processing(input_run_folder, fms_json, lanes_json, output, lanes
             "project_ext_id": None,
             "project_ext_src": None,
             "project_name": "MOH-Q",
-            "project_year": f"{datetime.strptime(fms_json['run_start_date'], '%Y)}",
+            "project_year": f"{datetime.strptime(fms_json['run_start_date'], '%Y')}",
             "project_phase": "2",
             "run_ext_id": fms_json["run_obj_id"],
             "run_ext_src": "FREEZEMAN",
