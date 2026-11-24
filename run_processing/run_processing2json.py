@@ -483,7 +483,7 @@ def sex_concordance_check(sample, value):
 def raw_exonic_rate_check(sample, ffpe, value):
     """ Check exonic rate metric and set flag based on ffpe status """
     if not value:
-        logger.waring(f"Missing 'raw_exonic_rate' value for {sample} from json.")
+        logger.warning(f"Missing 'raw_exonic_rate' value for {sample} from json.")
         return "MISSING"
     if float(value)<0.05:
         return "FAIL"
@@ -499,7 +499,7 @@ def raw_rrna_rate_check(sample, value):
     """ Check raw rRNA rate metric """
     if not value:
         ret = "MISSING"
-        logger.waring(f"Missing 'raw_rRNA_rate' value for {sample} from json.")
+        logger.warning(f"Missing 'raw_rRNA_rate' value for {sample} from json.")
     elif float(value)>0.10:
         ret = "WARNING"
     elif float(value)>0.35:
