@@ -116,6 +116,8 @@ def jsonify_run_processing(input_run_folder, fms_json, lanes_json, output, lanes
             "project_ext_id": None,
             "project_ext_src": None,
             "project_name": "MOH-Q",
+            "project_year": f"{datetime.strptime(fms_json['run_start_date'], '%Y)}",
+            "project_phase": "2",
             "run_ext_id": fms_json["run_obj_id"],
             "run_ext_src": "FREEZEMAN",
             "run_name": input_run_folder.split("/")[-1],
@@ -310,6 +312,7 @@ def jsonify_run_processing(input_run_folder, fms_json, lanes_json, output, lanes
                         "readset_sequencing_type": f"{lane_json['sequencing_method']}",
                         "readset_quality_offset": "33",
                         "readset_state": "ON_HOLD",
+                        "readset_preservation": "FFPE" if ffpe else None
                         "file": file_json,
                         "metric": metric_json
                         }
