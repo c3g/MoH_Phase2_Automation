@@ -230,7 +230,7 @@ def jsonify_run_processing(input_run_folder, fms_json, lanes_json, output, lanes
                         blast_1st_hit_flag = blast_1st_hit_check(sample_name, blast_1st_hit)
                         blast_1st_hit, blast_1st_hit_flag = check_na(blast_1st_hit, blast_1st_hit_flag)
 
-                        raw_freemix = float(run_v.get("alignment", {}).get("freemix"))
+                        raw_freemix = run_v.get("alignment", {}).get("freemix")
                         raw_freemix_flag = freemix_check(sample_name, raw_freemix)
                         raw_freemix, raw_freemix_flag = check_na(raw_freemix, raw_freemix_flag)
 
@@ -431,7 +431,7 @@ def freemix_check(sample, value):
     if not value:
         ret = "MISSING"
         logger.warning(f"Missing 'freemix' valuc for {sample} from json.")
-    elif value>0.05:
+    elif float(value)>0.05:
         ret = "FAIL"
     else:
         ret = "PASS"
