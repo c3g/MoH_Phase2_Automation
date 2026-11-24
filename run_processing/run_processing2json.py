@@ -361,8 +361,8 @@ def rna_raw_reads_count_check(sample, value):
         logger.warning(f"Missing 'nb_reads' value for {sample} from json.")
     elif int(value)<80000000:
         ret = "FAILED"
-    #elif int(value)<100000000:
-    #    ret = "WARNING"
+    elif int(value)<100000000:
+        ret = "WARNING"
     else:
         ret = "PASS"
     return ret
