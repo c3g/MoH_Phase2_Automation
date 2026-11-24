@@ -442,7 +442,7 @@ def sex_concordance_check(sample, value):
     if not value: # false might return this
         ret = "MISSING"
         logger.warning(f"Missing 'sex_concordance' valuc for {sample} from json.")
-    elif value = True:
+    elif value:
         ret = "PASS"
     else:
         ret = "FAIL"
