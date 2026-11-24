@@ -228,7 +228,7 @@ def jsonify_oncoanalyser_metrics(run_dir, group, results_dir, output_json, reads
     Jobs of ONE readset for the project tracking json (called by oncoanalyser2json.py once the run has started, in practice from post_run):
     - the head job oncoanalyser.<group> (status from .nextflow.log + ORANGE, like the post-run; times from traces + .nextflow/history)
     - one job per process this sample owns (status + times from the latest Nextflow trace)
-    - QC metrics on the qsee, bamtools, purple, isofox jobs
+    - QC metrics on the qsee, bamtools, purple, isofox, star_align jobs
     - result files (+ md5) of the COMPLETED jobs, once the run has ended (COMPLETED or FAILED)
     (the manual main() also sets operation_status = head job status)
     ffpe: True / False = FFPE status of this readset's sample; None (default) = not given, treated as not FFPE
@@ -266,6 +266,12 @@ def jsonify_oncoanalyser_metrics(run_dir, group, results_dir, output_json, reads
         metrics["PURPLE"] = extract_purple(group, sample_id, results_dir)
     if role == R and done("ISOFOX"):
         metrics["ISOFOX"] = extract_isofox(group, tumor_dna, results_dir)   # files named after the tumor DNA
+    # STAR: read MultiQC's STAR table (in results/, written at the end of the run)
+    if role == R and run_stopped and done("STAR_ALIGN"):
+        star_table = find_multiqc_star(results_dir)
+        metrics["STAR_ALIGN"] = extract_star(star_table, sample_id)
+        if star_table and "STAR_ALIGN" in jobs:
+            jobs["STAR_ALIGN"]["file"] = [file_entry(star_table)]   # link the table on star_align.<rna>
 
     for process, sample_metrics in metrics.items():
         if not sample_metrics:
@@ -447,12 +453,16 @@ def job_files(process, sample_id, group, results_dir):
         paths = sorted(p for p in glob.glob(os.path.join(path, "**"), recursive=True) if os.path.isfile(p))
     if process == "CIDER":                 # exception: flat folder:  one cider/ folder for tumor DNA and RNA: keep this sample's files
         paths = [p for p in paths if os.path.basename(p).startswith(sample_id)]
-    return [{
-        "file_name": os.path.basename(p),
-        "location_uri": f"cardinal://{os.path.abspath(p)}",  # same cardinal://<full path> format as transfer2json.py
-        "file_md5sum": md5sum(p),
+    return [file_entry(p) for p in paths]
+
+def file_entry(path):
+    """One result file for the json, with md5."""
+    return {
+        "file_name": os.path.basename(path),
+        "location_uri": f"cardinal://{os.path.abspath(path)}",  # same cardinal://<full path> format as transfer2json.py
+        "file_md5sum": md5sum(path),
         "file_deliverable": True,
-    } for p in paths]
+    }
 
 # group:  group_id from the samplesheet = run folder name (e.g. MoHQ-CQ-36-94_G0).
 #   onco writes all results of a run to results/<group>/. One group = one casetype/tumor (+ its normal, + RNA if any).
@@ -646,6 +656,42 @@ def extract_isofox(group, sample, results_dir):
         {"metric_name": "rna_fragment_length_median", "metric_value": summary.get("FragLength50th"), "metric_flag": None, "metric_deliverable": True},
     ]
     return metrics
+
+def find_multiqc_star(results_dir):
+    """
+    MultiQC's STAR table.
+    our site config copies multiqc_data/ to results/multiqc_data_txt 
+    Return: path (newest if several) or None.
+    """
+    mqc_dir = os.path.join(results_dir, 'multiqc_data_txt')
+    found = glob.glob(os.path.join(mqc_dir, '**', 'multiqc_hmftools_rna_star.txt'), recursive=True)
+    if not found:
+        logger.warning(f"missing multiqc_hmftools_rna_star.txt under {mqc_dir}")
+        return None
+    return max(found, key=os.path.getmtime)
+
+def extract_star(star_table, sample_id):
+    """
+    rna_mapped_proportion = (uniquely mapped + mapped to multiple loci)
+
+    Value only, no threshold
+    Return: list
+    """
+    value = None
+    if star_table:
+        with open(star_table, encoding='utf-8') as f:
+            # the row whose Sample contains the RNA sample_id (MultiQC may add a prefix like the group)
+            row = next((r for r in csv.DictReader(f, delimiter='\t') if sample_id in r.get("Sample", "")), None)
+        if row is None:
+            logger.warning(f"no row for {sample_id} in {star_table}")
+        else:
+            try:
+                mapped = (float(row["mapped_unique"]) + float(row["mapped_multiple"])) / float(row["input_total"])
+                value = f"{mapped:.4f}"
+            except (KeyError, TypeError, ValueError, ZeroDivisionError):
+                logger.warning(f"rna_mapped_proportion: bad STAR counts for {sample_id} in {star_table}")
+    return [{"metric_name": "rna_mapped_proportion", "metric_value": value,
+             "metric_flag": None if value else "MISSING", "metric_deliverable": True}]
 
 if __name__ == '__main__':
     main()
