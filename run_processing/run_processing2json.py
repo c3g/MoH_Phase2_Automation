@@ -276,13 +276,13 @@ def jsonify_run_processing(input_run_folder, fms_json, lanes_json, output, lanes
                                 },
                             {
                                 "metric_name": "raw_freemix",
-                                "metrics_value": raw_freemix,
+                                "metric_value": raw_freemix,
                                 "metric_flag": raw_freemix_flag
                                 },
                             {
                                 "metric_name": "sex_concordance",
-                                "metrics_value": sex_concordance,
-                                "metrics_flag": sex_concordance_flag
+                                "metric_value": sex_concordance,
+                                "metric_flag": sex_concordance_flag
                                 }
                             ]
 
