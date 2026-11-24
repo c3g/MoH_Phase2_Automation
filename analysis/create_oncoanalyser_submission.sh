@@ -81,6 +81,7 @@ nextflow run $ONCOANALYSER_HOME -profile singularity \\
 """ > ${ANALYSIS_DIR}/${GROUP}.oncoanalyser_${TIMESTAMP}.submit
 
 # create submission config trace
+module use /cvmfs/soft.mugqic/CentOS6/modulefiles
 module purge && module load mugqic/oncoanalyser/3.0.0
 nextflow -q -c ${ONCOANALYSER_CONFIGS}/onco.config -c ${ONCO_SITE_DIR}/cardinal_site.config config -show-profiles > ${ANALYSIS_DIR}/Oncoanalyser_${TIMESTAMP}.trace.config
 
