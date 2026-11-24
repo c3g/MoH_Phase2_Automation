@@ -406,7 +406,7 @@ def percent_bases_over_q30_check(sample, value):
     """ Percent bases over q30 metric check """
     if not value:
         ret = "MISSING"
-        logger.warning(f"Missing 'percent_bases_over_q30' valuc for {sample} from json.")
+        logger.warning(f"Missing 'percent_bases_over_q30' value for {sample} from json.")
     elif float(value)<80:
         ret = "WARNING"
     elif float(value)<75:
@@ -419,7 +419,7 @@ def blast_1st_hit_check(sample, value):
     """ Check for blast results to confirm human. """
     if not value:
         ret = "MISSING"
-        logger.warning(f"Missing 'blast_1st_hit' valuc for {sample} from json.")
+        logger.warning(f"Missing 'blast_1st_hit' value for {sample} from json.")
     elif "Homo_sapiens" not in value:
         ret = "FAIL"
     else:
@@ -430,7 +430,7 @@ def freemix_check(sample, value):
     """ Freemix contamination metric check """
     if not value:
         ret = "MISSING"
-        logger.warning(f"Missing 'freemix' valuc for {sample} from json.")
+        logger.warning(f"Missing 'freemix' value for {sample} from json.")
     elif float(value)>0.05:
         ret = "FAIL"
     else:
@@ -441,7 +441,7 @@ def sex_concordance_check(sample, value):
     """ Sex concordance metric check """
     if not value: # false might return this
         ret = "MISSING"
-        logger.warning(f"Missing 'sex_concordance' valuc for {sample} from json.")
+        logger.warning(f"Missing 'sex_concordance' value for {sample} from json.")
     elif value:
         ret = "PASS"
     else:
