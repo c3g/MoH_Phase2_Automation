@@ -113,7 +113,7 @@ for GROUP in $group; do
     ~/MoH_Phase2_Automation/analysis/create_samplesheet.sh ${NUCLEIC_ACID_TYPE} -g ${GROUP} -o ${ANALYSIS_DIR}/samplesheets/${TIMESTAMP} && \
     # create oncoanalyser submission script
     ~/MoH_Phase2_Automation/analysis/create_oncoanalyser_submission.sh -g ${GROUP} -d ${ANALYSIS_DIR} -t ${TIMESTAMP} && \
-    ONCOANALYSER_JSON=${ANALYSIS_DIR}/${GROUP}.oncoanalyser.json && \
+    ONCOANALYSER_JSON=${ANALYSIS_DIR}/${GROUP}.oncoanalyser.${TIMESTAMP}.json && \
     # add oncoanalyser launch json and ingest into DB to set operation to PENDING
     ~/MoH_Phase2_Automation/analysis/oncoanalyser2json.py -i ${ANALYSIS_DIR} -g ${GROUP} -t ${TIMESTAMP} -o ${ONCOANALYSER_JSON} && \
     pt-cli --url-root https://project-tracking.c3g-app.dev-sd4h.ca/ --project MOH-Q ingest analysis --input-json ${ONCOANALYSER_JSON} && \

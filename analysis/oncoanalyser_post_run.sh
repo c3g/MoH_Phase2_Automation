@@ -45,7 +45,7 @@ timestamp=$(basename "$(dirname "$samplesheet")")   # launch timestamp, needed f
 
 results=$run_dir/results/$group
 log=$run_dir/.nextflow.log
-json=$run_dir/$group.oncoanalyser.json 
+json=$run_dir/$group.oncoanalyser.$timestamp.json 
 out=$run_dir/$group.oncoanalyser_$timestamp.out
 
 # 1. CHECK THE RUN
