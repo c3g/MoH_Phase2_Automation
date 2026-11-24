@@ -229,6 +229,10 @@ def jsonify_run_processing(input_run_folder, fms_json, lanes_json, output, lanes
                         blast_1st_hit = run_v.get("blast", {}).get("1st_hit")
                         blast_1st_hit_flag = blast_1st_hit_check(sample_name, blast_1st_hit)
                         blast_1st_hit, blast_1st_hit_flag = check_na(blast_1st_hit, blast_1st_hit_flag)
+
+                        raw_freemix = float(run_v.get("alignment", {}).get("freemix"))
+                        raw_freemix_flag = freemix_check(sample_name, raw_freemix)
+                        raw_freemix, raw_freemix_flag = check_na(raw_freemix, raw_freemix_flag)
                         metric_json = [
                             {
                                 "metric_name": "raw_reads_count",
@@ -265,6 +269,11 @@ def jsonify_run_processing(input_run_folder, fms_json, lanes_json, output, lanes
                                 "metric_name": "blast_1st_hit",
                                 "metric_value": blast_1st_hit,
                                 "metric_flag": blast_1st_hit_flag
+                                }
+                            {
+                                "metric_name": "raw_freemix",
+                                "metrics_value": raw_freemix,
+                                "metric_flag": raw_freemix_flag
                                 }
                             ]
 
@@ -405,6 +414,18 @@ def blast_1st_hit_check(sample, value):
     else:
         ret = "PASS"
     return ret
+
+def freemix_check(sample, value):
+    """ Freemix contamination metric check """
+    if not value:
+        ret = "MISSING"
+        logger.warning(f"Missing 'freemix' valuc for {sample} from json.")
+    elif value>0.05:
+        ret = "FAIL"
+    else:
+        ret = "PASS"
+    return ret
+
         
 def compute_md5(file_path, chunk_size=8 * 1024 * 1024):  # 8MB chunks
     """Compute or retrieve MD5 checksum of a file using EAFP style."""
