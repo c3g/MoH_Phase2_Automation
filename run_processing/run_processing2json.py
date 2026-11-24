@@ -235,6 +235,20 @@ def jsonify_run_processing(input_run_folder, fms_json, lanes_json, output, lanes
                         raw_freemix = run_v.get("alignment", {}).get("freemix")
                         raw_freemix_flag = freemix_check(sample_name, raw_freemix)
                         raw_freemix, raw_freemix_flag = check_na(raw_freemix, raw_freemix_flag)
+                        
+                        if readset["library_type"] == "RNASeq":
+                            raw_exonic_rate = run_v.get("alignment", {}).get("exonic_rate")
+                            raw_exonic_rate_flag = raw_exonic_rate_check(sample_name, ffpe, raw_exonic_rate)
+                            raw_rrna_rate = run_v.get("alignment", {}).get("rRNA_rate")
+                            raw_rrna_rate_flag = raw_rrna_rate_check(sample_name, raw_rrna_rate)
+                        else:
+                            raw_exonic_rate = "N/A"
+                            raw_exonic_rate, raw_exonic_rate_flag = check_na(raw_exonic_rate, raw_exonic_rate_flag)
+                            raw_rrna_rate = "N/A"
+                            raw_rrna_rate, raw_rrna_rate_flag = check_na(raw_rrna_rate, raw_rrna_rate_flag)
+
+                        inferred_sex = run_v.get("alignment", {}).get("inferred_sex") 
+                        inferred_sex_flag = get_flag(inferred_sex)
 
                         sex_concordance = run_v.get("alignment", {}).get("sex_concordance")
                         sex_concordance_flag = sex_concordance_check(sample_name, sex_concordance)
@@ -280,6 +294,21 @@ def jsonify_run_processing(input_run_folder, fms_json, lanes_json, output, lanes
                                 "metric_name": "raw_freemix",
                                 "metric_value": raw_freemix,
                                 "metric_flag": raw_freemix_flag
+                                },
+                            {
+                                "metric_name": "raw_exonic_rate",
+                                "metric_value": raw_exonic_rate,
+                                "metric_flag": raw_exonic_rate_flag
+                                },
+                            {
+                                "metric_name": "raw_rrna_rate",
+                                "metric_value": raw_rrna_rate,
+                                "metric_flag": raw_rrna_rate_flag
+                                },
+                            {
+                                "metric_name": "inferred_sex",
+                                "metric_value": inferred_sex,
+                                "metric_flag": inferred_sex_flag
                                 },
                             {
                                 "metric_name": "sex_concordance",
@@ -449,6 +478,34 @@ def sex_concordance_check(sample, value):
         ret = "PASS"
     else:
         ret = "FAIL"
+    return ret
+
+def raw_exonic_rate_check(sample, ffpe, value):
+    """ Check exonic rate metric and set flag based on ffpe status """
+    if not value:
+        logger.waring(f"Missing 'raw_exonic_rate' value for {sample} from json.")
+        return "MISSING"
+    if float(value)<0.05:
+        return "FAIL"
+    if ffpe and float(value)<0.15:
+        ret = "WARNING"
+    elif not ffpe and float(value)<0.25:
+        ret = "WARNING"
+    else:
+        ret = "PASS"
+    return ret
+
+def raw_rrna_rate_check(sample, value):
+    """ Check raw rRNA rate metric """
+    if not value:
+        ret = "MISSING"
+        logger.waring(f"Missing 'raw_rRNA_rate' value for {sample} from json.")
+    elif float(value)>0.10:
+        ret = "WARNING"
+    elif float(value)>0.35:
+        ret = "FAIL"
+    else:
+        ret = "PASS"
     return ret
         
 def compute_md5(file_path, chunk_size=8 * 1024 * 1024):  # 8MB chunks
