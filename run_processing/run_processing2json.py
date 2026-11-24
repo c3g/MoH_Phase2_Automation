@@ -233,6 +233,10 @@ def jsonify_run_processing(input_run_folder, fms_json, lanes_json, output, lanes
                         raw_freemix = float(run_v.get("alignment", {}).get("freemix"))
                         raw_freemix_flag = freemix_check(sample_name, raw_freemix)
                         raw_freemix, raw_freemix_flag = check_na(raw_freemix, raw_freemix_flag)
+
+                        sex_concordance = run_v.get("alignment", {}).get("sex_concordance")
+                        sex_concordance_flag = sex_concordance_check(sample_name, sex_concordance)
+
                         metric_json = [
                             {
                                 "metric_name": "raw_reads_count",
@@ -269,11 +273,16 @@ def jsonify_run_processing(input_run_folder, fms_json, lanes_json, output, lanes
                                 "metric_name": "blast_1st_hit",
                                 "metric_value": blast_1st_hit,
                                 "metric_flag": blast_1st_hit_flag
-                                }
+                                },
                             {
                                 "metric_name": "raw_freemix",
                                 "metrics_value": raw_freemix,
                                 "metric_flag": raw_freemix_flag
+                                },
+                            {
+                                "metric_name": "sex_concordance",
+                                "metrics_value": sex_concordance,
+                                "metrics_flag": sex_concordance_flag
                                 }
                             ]
 
@@ -428,6 +437,16 @@ def freemix_check(sample, value):
         ret = "PASS"
     return ret
 
+def sex_concordance_check(sample, value):
+    """ Sex concordance metric check """
+    if not value: # false might return this
+        ret = "MISSING"
+        logger.warning(f"Missing 'sex_concordance' valuc for {sample} from json.")
+    elif value = True:
+        ret = "PASS"
+    else:
+        ret = "FAIL"
+    return ret
         
 def compute_md5(file_path, chunk_size=8 * 1024 * 1024):  # 8MB chunks
     """Compute or retrieve MD5 checksum of a file using EAFP style."""
