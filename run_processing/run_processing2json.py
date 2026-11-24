@@ -398,8 +398,10 @@ def percent_bases_over_q30_check(sample, value):
     if not value:
         ret = "MISSING"
         logger.warning(f"Missing 'percent_bases_over_q30' valuc for {sample} from json.")
-    elif float(value)<75:
+    elif float(value)<80:
         ret = "WARNING"
+    elif float(value)<75:
+        ret = "FAIL"
     else:
         ret = "PASS"
     return ret
