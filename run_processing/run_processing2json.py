@@ -312,7 +312,7 @@ def jsonify_run_processing(input_run_folder, fms_json, lanes_json, output, lanes
                         "readset_sequencing_type": f"{lane_json['sequencing_method']}",
                         "readset_quality_offset": "33",
                         "readset_state": "ON_HOLD",
-                        "readset_preservation": "FFPE" if ffpe else None
+                        "readset_preservation": "FFPE" if ffpe else None,
                         "file": file_json,
                         "metric": metric_json
                         }
