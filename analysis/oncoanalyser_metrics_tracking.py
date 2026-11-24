@@ -604,12 +604,14 @@ def extract_bamtools(group, sample, results_dir, ffpe=None):
     return metrics
 
 def insert_size_flags(mean, median, ffpe=None):
-    # DNA insert size flags to mean_flag, median_flag
-    # mean < 150 WARNING, else PASS
-    # median: FFPE -> no flag; not FFPE or unknown < 250 WARNING, else PASS
-    mean_flag = "WARNING" if mean < 150 else "PASS"
-    median_flag = None if ffpe else ("WARNING" if median < 250 else "PASS")
-    return mean_flag, median_flag
+    # DNA insert size flags to set both mean_fla and median_flag
+    # < 150 -> FAILED (WARNING if FFPE); < 300 -> WARNING; else PASS
+    # ffpe None (not given) = not FFPE
+    def flag(value):
+        if value < 150:
+            return "WARNING" if ffpe else "FAILED"
+        return "WARNING" if value < 300 else "PASS"
+    return flag(mean), flag(median)
 
 def extract_isofox(group, sample, results_dir):
     """
