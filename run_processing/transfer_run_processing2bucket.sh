@@ -120,7 +120,7 @@ if [ $? -eq 0  ]; then
          -X POST \
          -d '{"readset_name": "'"$readset_name"'"}' \
          $(cat ~/.config/jenkins/webhook_url.txt)
-    sleep 10
+    sleep 20
     done
 else
     echo "$task_id failed!"
