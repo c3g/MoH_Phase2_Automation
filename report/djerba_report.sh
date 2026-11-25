@@ -153,7 +153,7 @@ if ! APPENDIX=$APPENDIX ISOFOX=$isofox_csv "$SCRIPTS"/djerba_ini.sh -t "$tumor_d
 fi
 
 # 7. report
-start_time = $(date +%FT%H.%M.%S) 
+start_time=$(date +%FT%H.%M.%S) 
 echo "Djerba report for $group (tumor $tumor_dna, normal $normal_dna, oncotree ${oncotree:-none})"
 (cd "$out" && djerba.py report -i "$ini" -o "$out" -w "$out/work" -p --no-archive) > "$out/djerba.log" 2>&1
 if [ $? -ne 0 ] || ! ls "$out"/*.pdf >/dev/null 2>&1; then
@@ -163,7 +163,7 @@ fi
 
 # PDF next to the MultiQC report, delivered with results/
 cp "$out"/*.pdf "$run_dir/results/" || fail "PDF not copied to $run_dir/results"
-end_time = $(date +%FT%H.%M.%S)
+end_time=$(date +%FT%H.%M.%S)
 
 status=OK
 echo "Report: $(ls "$out"/*.pdf)"
