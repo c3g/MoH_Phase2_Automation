@@ -24,7 +24,7 @@ def main():
     args = parse_arguments()
 
     run_dir = os.path.dirname(os.path.dirname(args.input))
-    group = os.bath.basename(run_dir)
+    group = os.path.basename(run_dir)
     
     if not args.output:
         output = os.path.join(run_dir), f"{group}.djerba.json"
