@@ -9,6 +9,7 @@ import sys
 import glob
 import logging
 import gzip
+import operator
 from datetime import datetime, timedelta
 
 logging.basicConfig(format='%(levelname)s: %(asctime)s - %(message)s', level=logging.INFO)
@@ -84,6 +85,40 @@ RNA_PROCESSES = {
     "SAGE_APPEND_GERMLINE", "SAGE_APPEND_SOMATIC",
     "NEO_ANNOTATE_FUSIONS",
 }
+
+# # # QC THRESHOLDS FOR THE DB# # #
+# The tools keep their own thresholds; the flags we send to the DB are set here.
+# For each metric: the WARNING / FAILED limits for tumour (T) and normal (N).
+# {} = no threshold (no flag). Metrics not listed keep the tool's own flag.
+OPS = {"<": operator.lt, ">": operator.gt, ">=": operator.ge}
+
+def rule(warn=None, fail=None):
+    """{"FAILED": ..., "WARNING": ...} without the empty ones."""
+    return {flag: limit for flag, limit in (("FAILED", fail), ("WARNING", warn)) if limit}
+
+QC_RULES = {
+    # QSEE / BamTools (tumour + normal)
+    "mapped_proportion":       {T: rule(warn=("<", 0.95)),               N: rule(warn=("<", 0.95))},
+    "mean_coverage":           {T: rule(warn=("<", 80), fail=("<", 30)), N: rule(fail=("<", 30))},
+    "coverage_above_10":       {T: rule(warn=("<", 0.9)),                N: rule(warn=("<", 0.9))},
+    "coverage_above_20":       {T: rule(warn=("<", 0.9)),                N: rule(warn=("<", 0.8))},
+    "coverage_above_30":       {T: rule(warn=("<", 0.9)),                N: rule(warn=("<", 0.4))},
+    "coverage_above_60":       {T: rule(warn=("<", 0.8)),                N: rule()},
+    "coverage_above_100":      {T: rule(warn=("<", 0.1)),                N: rule()},
+    "coverage_above_250":      {T: rule(),                               N: rule()},
+    "low_base_qual":           {T: rule(warn=(">", 0.05)),               N: rule(warn=(">", 0.05))},
+    "low_map_qual":            {T: rule(warn=(">", 0.05)),               N: rule(warn=(">", 0.05))},
+    "duplicate_reads":         {T: rule(warn=(">", 0.5)),                N: rule(warn=(">", 0.5))},
+    "dual_strand_reads":       {T: rule(warn=(">", 0.5)),                N: rule(warn=(">", 0.5))},
+    # PURPLE values reported by QSEE (tumour)
+    "purity":                  {T: rule(fail=("<", 0.30))}, # MOHCCN gate
+    "contamination":           {T: rule(fail=(">", 0.10))},
+    "tinc":                    {T: rule(warn=(">", 0), fail=(">=", 0.25))},
+    "deleted_genes":           {T: rule(warn=(">", 280))},
+    "unsupported_cn_segments": {T: rule(warn=(">", 220))},
+}
+# insert sizes (BamTools, tumour + normal) depend on FFPE
+INSERT_SIZE_METRICS = {"mean_insert_size", "median_insert_size"}
 def parse_arguments():
     """Parse command line arguments."""
     parser = argparse.ArgumentParser(
@@ -228,7 +263,7 @@ def jsonify_oncoanalyser_metrics(run_dir, group, results_dir, output_json, reads
     Jobs of ONE readset for the project tracking json (called by oncoanalyser2json.py once the run has started, in practice from post_run):
     - the head job oncoanalyser.<group> (status from .nextflow.log + ORANGE, like the post-run; times from traces + .nextflow/history)
     - one job per process this sample owns (status + times from the latest Nextflow trace)
-    - QC metrics on the qsee, bamtools, purple, isofox, star_align jobs
+    - QC metrics on the qsee, bamtools, purple, isofox, star_align jobs (DB flags from our thresholds: QC_RULES)
     - result files (+ md5) of the COMPLETED jobs, once the run has ended (COMPLETED or FAILED)
     (the manual main() also sets operation_status = head job status)
     ffpe: True / False = FFPE status of this readset's sample; None (default) = not given, treated as not FFPE
@@ -261,7 +296,7 @@ def jsonify_oncoanalyser_metrics(run_dir, group, results_dir, output_json, reads
         if done("QSEE"):
             metrics["QSEE"] = extract_qsee(group, tumor_dna, results_dir).get(sample_id, [])
         if done("BAMTOOLS"):
-            metrics["BAMTOOLS"] = extract_bamtools(group, sample_id, results_dir, ffpe)
+            metrics["BAMTOOLS"] = extract_bamtools(group, sample_id, results_dir)
     if role == T and done("PURPLE"):
         metrics["PURPLE"] = extract_purple(group, sample_id, results_dir)
     if role == R and done("ISOFOX"):
@@ -278,7 +313,7 @@ def jsonify_oncoanalyser_metrics(run_dir, group, results_dir, output_json, reads
             continue
         # the normal has no QSEE job of its own (QSEE belongs to the tumor): made here for its metrics
         job = jobs.get(process) or make_job(process, sample_id, group, trace_rows)
-        job["metric"] = set_db_flags(sample_metrics)
+        job["metric"] = set_db_flags(apply_qc_rules(sample_metrics, role, ffpe))   # our thresholds -> DB flags
         jobs[process] = job
 
     # 3. into the json, under this readset
@@ -421,6 +456,50 @@ def add_jobs(json_output, sample_id, readsets, jobs):
             else:
                 readset["job"].append(job)
 
+def parse_value(value):
+    """Metric value -> float, or None if missing / not a number / NaN."""
+    try:
+        number = float(value)
+    except (TypeError, ValueError):
+        return None
+    return None if number != number else number     # number != number: NaN
+
+def threshold_flag(value, limits):
+    """Flag of one value against a rule from QC_RULES: FAILED, WARNING or PASS; None if no threshold; MISSING if no value."""
+    if not limits:
+        return None
+    number = parse_value(value)
+    if number is None:
+        return "MISSING"
+    for flag in ("FAILED", "WARNING"):
+        if flag in limits:
+            op, threshold = limits[flag]
+            if OPS[op](number, threshold):
+                return flag
+    return "PASS"
+
+def insert_size_flag(value, ffpe=None):
+    """
+    Mean and median DNA insert size (same rule for both):
+    < 150 -> FAILED (WARNING if FFPE); < 300 -> WARNING; else PASS. ffpe None (not given) = not FFPE.
+    """
+    number = parse_value(value)
+    if number is None:
+        return "MISSING"
+    if number < 150:
+        return "WARNING" if ffpe else "FAILED"
+    return "WARNING" if number < 300 else "PASS"
+
+def apply_qc_rules(metrics, role, ffpe=None):
+    """Set the DB flag of each metric from our thresholds (QC_RULES, insert sizes). No rule: the tool's own flag is kept."""
+    for m in metrics:
+        name = m["metric_name"]
+        if name in INSERT_SIZE_METRICS:
+            m["metric_flag"] = insert_size_flag(m["metric_value"], ffpe)
+        elif role in QC_RULES.get(name, {}):
+            m["metric_flag"] = threshold_flag(m["metric_value"], QC_RULES[name][role])
+    return metrics
+
 def set_db_flags(metrics):
     """Make flags DB-safe: unknown flag -> None (warning), no flag -> UNFLAGGED_DELIVERABLE_FLAG (the DB rejects a null flag)."""
     for m in metrics:
@@ -471,13 +550,12 @@ def file_entry(path):
 def extract_qsee(group, tumour_sample, results_dir):
     """
     QSEE QC metrics (value + flag) for the tumour and normal samples
-    QSEE flags are already calculated based on the qsee thresholds file (in configs). 
+    QSEE's flags use its default thresholds; for the DB they are replaced by ours (QC_RULES) in apply_qc_rules().
     Return: dict (sample name -> list of metrics)
     """
 
-    # pro for qsee: already has pass/fail flags for each metric, though it doesn't include all the metrics 
-    # and we are already giving it qsee thresholds, which we can update manually
-    # maybe need a fallback though in case qsee is missing or we're using older onco 
+    # QSEE collects the values (BamTools, PURPLE, ...) in one file; features without a rule in QC_RULES keep QSEE's flag
+    # maybe need a fallback though in case qsee is missing or we're using older onco
 
     qsee_file = os.path.join(results_dir, group, 'qsee', f'{tumour_sample}.qsee.status.tsv.gz')
 
@@ -524,21 +602,12 @@ def extract_purple(group, sample, results_dir):
         values = f.readline().rstrip('\n').split('\t')
     purity_tsv = dict(zip(header, values))
 
-    # metrics: qc status (with flag), ploidy, purity_gate.
-    # QSEE still reports purity (with PURPLE's own 0.20 WARN) and contamination;
-    # purity_gate is the separate consortium gate (MOHCCN: purity >= 30%).
+    # metrics: qc status (PURPLE's flag), ploidy.
+    # purity, contamination etc. come from QSEE (flags from QC_RULES)
     metrics = [
         {"metric_name": "purple_qc_status", "metric_value": qc["QCStatus"], "metric_flag": status_flag(qc["QCStatus"]), "metric_deliverable": True},
         {"metric_name": "ploidy", "metric_value": purity_tsv["ploidy"], "metric_flag": None, "metric_deliverable": True},
     ]
-
-    # purity_gate: consortium gate (MOHCCN: purity >= 30%): < 0.30 -> FAILED, else PASS
-    try:
-        purity_flag = "FAILED" if float(purity_tsv["purity"]) < 0.30 else "PASS"
-    except (KeyError, ValueError):
-        purity_flag = "MISSING"
-    metrics.append({"metric_name": "purity_gate", "metric_value": purity_tsv.get("purity"),
-                    "metric_flag": purity_flag, "metric_deliverable": True})
     return metrics
 
 
@@ -555,10 +624,10 @@ def status_flag(status):
     return None
 
 
-def extract_bamtools(group, sample, results_dir, ffpe=None):
+def extract_bamtools(group, sample, results_dir):
     """
     Bamtools metrics that QSEE does not report.
-    ffpe: True / False / None (not given = not FFPE). uses insert_size_flags().
+    Insert size flags are set later by apply_qc_rules() (FFPE-aware).
     Return: list
     """
 
@@ -604,24 +673,14 @@ def extract_bamtools(group, sample, results_dir, ffpe=None):
             if running >= total / 2:
                 break
         mean = weighted / total
-        mean_flag, median_flag = insert_size_flags(mean, median, ffpe)
 
-        metrics.append({"metric_name": "mean_insert_size", "metric_value": f'{mean:.1f}', "metric_flag": mean_flag, "metric_deliverable": True})
-        metrics.append({"metric_name": "median_insert_size", "metric_value": str(median), "metric_flag": median_flag, "metric_deliverable": True})
+        # flags set by apply_qc_rules() (insert_size_flag)
+        metrics.append({"metric_name": "mean_insert_size", "metric_value": f'{mean:.1f}', "metric_flag": None, "metric_deliverable": True})
+        metrics.append({"metric_name": "median_insert_size", "metric_value": str(median), "metric_flag": None, "metric_deliverable": True})
     else:
         logger.warning(f"missing {frag_file}")
 
     return metrics
-
-def insert_size_flags(mean, median, ffpe=None):
-    # DNA insert size flags to set both mean_fla and median_flag
-    # < 150 -> FAILED (WARNING if FFPE); < 300 -> WARNING; else PASS
-    # ffpe None (not given) = not FFPE
-    def flag(value):
-        if value < 150:
-            return "WARNING" if ffpe else "FAILED"
-        return "WARNING" if value < 300 else "PASS"
-    return flag(mean), flag(median)
 
 def extract_isofox(group, sample, results_dir):
     """
@@ -650,8 +709,8 @@ def extract_isofox(group, sample, results_dir):
         {"metric_name": "isofox_qc_status", "metric_value": summary["QcStatus"], "metric_flag": status_flag(summary["QcStatus"]), "metric_deliverable": True},
         {"metric_name": "total_fragments", "metric_value": summary.get("TotalFragments"), "metric_flag": None, "metric_deliverable": True},
         {"metric_name": "duplicate_fragments", "metric_value": summary["DuplicateFragments"], "metric_flag": None, "metric_deliverable": True},
-        {"metric_name": "spliced_fragment_perc", "metric_value": summary["SplicedFragmentPerc"], "metric_flag": None, "metric_deliverable": True},
-        {"metric_name": "chimeric_fragment_perc", "metric_value": summary["ChimericFragmentPerc"], "metric_flag": None, "metric_deliverable": True},
+        {"metric_name": "spliced_fragment", "metric_value": summary["SplicedFragmentPerc"], "metric_flag": None, "metric_deliverable": True},
+        {"metric_name": "chimeric_fragment", "metric_value": summary["ChimericFragmentPerc"], "metric_flag": None, "metric_deliverable": True},
         {"metric_name": "spliced_gene_count", "metric_value": summary["SplicedGeneCount"], "metric_flag": None, "metric_deliverable": True},
         {"metric_name": "rna_fragment_length_median", "metric_value": summary.get("FragLength50th"), "metric_flag": None, "metric_deliverable": True},
     ]
