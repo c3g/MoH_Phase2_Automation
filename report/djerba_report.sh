@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Djerba report of one oncoanalyser run: HTML and PDF in <run_dir>/djerba/.
+# Djerba report of one oncoanalyser run: HTML and PDF in <run_dir>/djerba/, PDF also in <run_dir>/results/.
 # Usage: djerba_report.sh -d <run_dir> [-g <group>] [-c <oncotree>]
 
 set -uo pipefail
@@ -159,6 +159,9 @@ if [ $? -ne 0 ] || ! ls "$out"/*.pdf >/dev/null 2>&1; then
     tail -5 "$out/djerba.log"
     fail "Djerba failed, see $out/djerba.log"
 fi
+
+# PDF next to the MultiQC report, delivered with results/
+cp "$out"/*.pdf "$run_dir/results/" || fail "PDF not copied to $run_dir/results"
 
 status=OK
 echo "Report: $(ls "$out"/*.pdf)"
