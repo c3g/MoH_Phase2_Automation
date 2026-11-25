@@ -30,8 +30,8 @@ def main():
     jsonify_djerba(
             ini_file = args.input,
             json_file = output,
-            run_dir,
-            group,
+            run_dir = run_dir,
+            group = group,
             operation_cmd_line = args.operation_cmd_line,
             start = args.start,
             stop = args.stop                                                                                                                                    
