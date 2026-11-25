@@ -118,7 +118,7 @@ def create(json_file, group, sample, readsets, start, stop, tumor_dna):
                             "file_name": "MoHQ-CS-235-2-DT.redux.bam",
                             "location_uri": f"cardinal://{djerba_report}",
                             "file_md5sum": md5sum(djerba_report),
-                            "file_deliverable": true
+                            "file_deliverable": True
 
                         }
                     ]
