@@ -56,7 +56,8 @@ def create(json_file, group, sample, readsets, start, stop):
                     'job_name': f"djerba_report.{group}",
                     'job_start': start,
                     'job_stop': stop,
-                    'job_status': "PENDING",
+                    'job_status': "COMPLETED",
+                    'file': "TBD"
                 }
             ]
         }
@@ -81,11 +82,11 @@ def jsonify_djerba(ini_file, json_file, run_dir, group, operation_cmd_line, star
     json_output = {
             "operation_name": "djerba",
             "operation_pipeline": None,
-            "operation_status" "COMPLETED",
+            "operation_status": "COMPLETED",
             "operation_config_name": os.path.basename(ini_file),
             "operation_config_version": "TBD",
-            "operation_config_md5sum": ,
-            "operation_config_data": ,
+            "operation_config_md5sum": operation_config_md5sum,
+            "operation_config_data": ''.join(operation_config_data),
             "operation_platform": "cardinal",
             "operation_cmd_line": operation_cmd_line,
             "sample": []                                                                      
