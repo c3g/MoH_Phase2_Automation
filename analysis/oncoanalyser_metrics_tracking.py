@@ -709,8 +709,8 @@ def extract_isofox(group, sample, results_dir):
         {"metric_name": "isofox_qc_status", "metric_value": summary["QcStatus"], "metric_flag": status_flag(summary["QcStatus"]), "metric_deliverable": True},
         {"metric_name": "total_fragments", "metric_value": summary.get("TotalFragments"), "metric_flag": None, "metric_deliverable": True},
         {"metric_name": "duplicate_fragments", "metric_value": summary["DuplicateFragments"], "metric_flag": None, "metric_deliverable": True},
-        {"metric_name": "spliced_fragment_perc", "metric_value": summary["SplicedFragmentPerc"], "metric_flag": None, "metric_deliverable": True},
-        {"metric_name": "chimeric_fragment_perc", "metric_value": summary["ChimericFragmentPerc"], "metric_flag": None, "metric_deliverable": True},
+        {"metric_name": "spliced_fragment", "metric_value": summary["SplicedFragmentPerc"], "metric_flag": None, "metric_deliverable": True},
+        {"metric_name": "chimeric_fragment", "metric_value": summary["ChimericFragmentPerc"], "metric_flag": None, "metric_deliverable": True},
         {"metric_name": "spliced_gene_count", "metric_value": summary["SplicedGeneCount"], "metric_flag": None, "metric_deliverable": True},
         {"metric_name": "rna_fragment_length_median", "metric_value": summary.get("FragLength50th"), "metric_flag": None, "metric_deliverable": True},
     ]
