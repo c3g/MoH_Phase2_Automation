@@ -8,15 +8,20 @@ import logging
 logging.basicConfig(format='%(levelname)s: %(asctime)s - %(message)s', level=logging.INFO)
 logger = logging.getLogger(__name__)
 
-def main():
-    """ Main  """
+def parse_arguments():
+    """Parse command line arguments."""
     parser = argparse.ArgumentParser(prog='djerba2json.py', description="Creates json file for project tracking database for a djerba report generation operation.")
     parser.add_argument('-i', '--input', required=True, help="Djerba ini file.")
     parser.add_argument('-o', '--output', required=False, help="Output json filename (Default: <input_filename>.json).")
     parser.add_argument('--start', required=False, help="Start time of operation (format: YYYY-MM-DDTHH.MM.SS).")
     parser.add_argument('--stop', required=False, help="End time of operation (format: YYYY-MM-DDTHH.MM.SS).")
     parser.add_argument('--operation_cmd_line', required=True, help="Command used for transfer.")
-    args = parser.parse_args()
+    
+    return parser.parse_args()
+
+def main():
+    """ Main  """
+    args = parse_arguments()
 
     run_dir = os.path.dirname(os.path.dirname(args.input))
     group = os.bath.basename(run_dir)
@@ -148,4 +153,6 @@ def jsonify_djerba(ini_file, json_file, run_dir, group, operation_cmd_line, star
 
     for sample, value in samples.items():
         create(json_file, group, sample, value['readsets'], start, stop, tumor_dna)
-            
+
+if __name__ == '__main__':
+    main()
