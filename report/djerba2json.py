@@ -4,7 +4,6 @@ import argparse
 import json
 import os
 import logging
-from ..analysis.oncoanalyser2json import parse_samplesheet, md5_list
 
 logging.basicConfig(format='%(levelname)s: %(asctime)s - %(message)s', level=logging.INFO)
 logger = logging.getLogger(__name__)
@@ -37,11 +36,52 @@ def main():
             stop = args.stop                                                                                                                                    
             )
 
+def parse_samplesheet(samplesheet):
+    """
+    Parse samplesheet for oncoanalyser run for samples and readsets.
+    """
+    samples = {}
+
+    with open(samplesheet, encoding='utf-8') as f:
+        for row in csv.DictReader(f):
+            sample = row["sample_id"]
+            info = dict(part.split(":", 1) for part in row["info"].split(";") if ":" in part)
+            readset = info.get("library_id")
+            if row["sample_type"] == "tumor" and row["sequence_type"] == "dna":
+                tumor_dna = sample
+                role = "tumor"
+            if row["sequence_type"] == "rna":
+                role = "rna"
+            if row["sample_type"] == "normal":
+                role = "normal"
+
+            if sample not in samples.keys():
+                samples[sample] = {"readsets": [readset]}
+            else:
+                samples[sample]["readsets"].append(readset)
+            samples[sample]["role"] = role
+
+    return samples, tumor_dna
+
+def md5_list(content_list):
+    """
+    Returns md5 of the content of a list
+    """
+    hash_md5 = hashlib.md5()
+
+    for item in content_list:
+        hash_md5.update(item.encode('utf-8'))
+    
+    return hash_md5.hexdigest()
+
 def create(json_file, group, sample, readsets, start, stop):
     """ Create entries for samples and readsets """
     
     with open(json_file, 'r') as j_file:
         current_json_hash = json.load(j_file)
+
+    run_dir = os.path.dirname(os.path.abspath(json_file))
+    djerba_report = os.path.join(run_dir, "results", f"{tumor_dna}_report.research.pdf")
 
     sample_json = {
         'sample_name': sample,
@@ -57,7 +97,12 @@ def create(json_file, group, sample, readsets, start, stop):
                     'job_start': start,
                     'job_stop': stop,
                     'job_status': "COMPLETED",
-                    'file': "TBD"
+                    'file': [
+                        {
+                            "file_name": "MoHQ-CS-235-2-DT.redux.bam",
+                            "location_uri": f"cardinal://{djerba_report}"
+                        }
+                    ]
                 }
             ]
         }
@@ -99,8 +144,8 @@ def jsonify_djerba(ini_file, json_file, run_dir, group, operation_cmd_line, star
     samplesheet_main = max(samplesheet_candidates, key=os.path.getmtime)
     if not samplesheet_main:
         raise FileNotFoundError(f"No main samplesheet found in folder {args.input}")
-    samples = parse_samplesheet(samplesheet_main)
+    samples, tumor_dna = parse_samplesheet(samplesheet_main)
 
     for sample, value in samples.items():
-        create(json_file, group, sample, value['readsets'], start, stop)
+        create(json_file, group, sample, value['readsets'], start, stop, tumor_dna)
             
