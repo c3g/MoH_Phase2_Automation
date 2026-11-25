@@ -29,7 +29,7 @@ def main():
 
     jsonify_djerba(
             ini_file = args.input,
-            output = output,
+            json_file = output,
             run_dir,
             group,
             operation_cmd_line = args.operation_cmd_line,
