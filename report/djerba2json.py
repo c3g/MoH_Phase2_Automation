@@ -2,8 +2,11 @@
 
 import argparse
 import json
+import hashlib
+import glob
 import os
 import logging
+import csv
 
 logging.basicConfig(format='%(levelname)s: %(asctime)s - %(message)s', level=logging.INFO)
 logger = logging.getLogger(__name__)
@@ -23,7 +26,7 @@ def main():
     """ Main  """
     args = parse_arguments()
 
-    run_dir = os.path.dirname(os.path.dirname(args.input))
+    run_dir = os.path.dirname(os.path.dirname(os.path.abspath(args.input)))
     group = os.path.basename(run_dir)
     
     if not args.output:
@@ -79,7 +82,15 @@ def md5_list(content_list):
     
     return hash_md5.hexdigest()
 
-def create(json_file, group, sample, readsets, start, stop):
+def md5sum(path):
+    """md5 of a file, read in 8 MB chunks for bams"""
+    h = hashlib.md5()
+    with open(path, 'rb') as f:
+        for chunk in iter(lambda: f.read(8 * 1024 * 1024), b''):
+            h.update(chunk)
+    return h.hexdigest()
+
+def create(json_file, group, sample, readsets, start, stop, tumor_dna):
     """ Create entries for samples and readsets """
     
     with open(json_file, 'r') as j_file:
@@ -105,7 +116,10 @@ def create(json_file, group, sample, readsets, start, stop):
                     'file': [
                         {
                             "file_name": "MoHQ-CS-235-2-DT.redux.bam",
-                            "location_uri": f"cardinal://{djerba_report}"
+                            "location_uri": f"cardinal://{djerba_report}",
+                            "file_md5sum": md5sum(djerba_report),
+                            "file_deliverable": true
+
                         }
                     ]
                 }
