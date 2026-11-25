@@ -34,12 +34,9 @@ def decide_group(pt, group_name):
     readset_id_list = [str(readset['id']) for readset in readsets]
     readset_ids = ",".join(readset_id_list)
     operations = [op for op in live(pt.route(f"readsets/{readset_ids}/operations")) if op["analysis"] and op["name"] == "oncoanalyser"]
-    print(operations)
     if any(op["status"] in ("PENDING", "RUNNING") for op in operations):
         return {"group": group["name"], "decision": "WAIT", "reason": "an oncoanalyser run of this group is still running: re-check when it ends"}
-    print(set(op["readset_ids"]) for op in operations)
-    complete_overlap = [op for op in operations if set(readset_id_list) <= set(op["readset_ids"])]
-    print(complete_overlap)
+    complete_overlap = [op for op in operations if set([readset['id'] for readset in readsets]) == set(op["readset_ids"])]
     if any(op["status"] == "COMPLETED" for op in complete_overlap):
         return {"group": group["name"], "decision": "SKIP", "reason": "a completed oncoanalyser run already covers all of the group's readsets"}
     else:
