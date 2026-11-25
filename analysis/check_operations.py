@@ -37,6 +37,7 @@ def decide_group(pt, group_name):
     print(operations)
     if any(op["status"] in ("PENDING", "RUNNING") for op in operations):
         return {"group": group["name"], "decision": "WAIT", "reason": "an oncoanalyser run of this group is still running: re-check when it ends"}
+    print(set(op["readset_ids"]) for op in operations)
     complete_overlap = [op for op in operations if set(readset_id_list) <= set(op["readset_ids"])]
     print(complete_overlap)
     if any(op["status"] == "COMPLETED" for op in complete_overlap):
