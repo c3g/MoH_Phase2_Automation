@@ -115,4 +115,4 @@ fi
 # echo "$group delivered."
 
 # 6. RELAUNCH if the group has readsets this run did not use
-"$SCRIPTS"/analysis/oncoanalyser_launch.sh -g "$group"
+#"$SCRIPTS"/analysis/oncoanalyser_launch.sh -g "$group"
