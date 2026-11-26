@@ -64,6 +64,7 @@ fi
 # Where results go in the bucket: MOH-Q/<institution>/<cohort>/<specimen>/<group>/results
 specimen=$(basename "$(dirname "$run_dir")")
 # cohort + institution of the specimen from the DB
+unset PYTHONPATH
 source ~/project_tracking_cli/.venv/bin/activate
 read -r cohort institution < <(pt-cli --url-root https://project-tracking.c3g-app.dev-sd4h.ca/ --project MOH-Q route "/project/MOH-Q/specimens?json={\"specimen_name\":\"${specimen}\"}" \
     | jq -r '.DB_ACTION_OUTPUT[0] | "\(.cohort) \(.institution)"') || true
@@ -96,20 +97,24 @@ sub_id="$(globus task generate-submission-id)"
 # Start the batch transfer
 task_id="$(globus transfer --sync-level mtime --jmespath 'task_id' --format=UNIX --submission-id "$sub_id" --label "$group" --batch "$LISTFILE" $SRC_EP $DEST_EP)"
 echo -e "Waiting on 'globus transfer' task '$task_id'.\nTo monitor the transfer see: https://app.globus.org/activity/$task_id/overview"
-globus task wait "$task_id" --polling-interval 60 -H
 
+until status=$(globus task show "$task_id" --jmespath status --format=UNIX 2>/dev/null) \
+      && [[ "$status" =~ ^(SUCCEEDED|FAILED)$ ]]; do
+    sleep 60
+done
 
-# only go on if every file was copied
-status="$(globus task show "$task_id" --jmespath 'status' --format=UNIX)"
 if [ "$status" != "SUCCEEDED" ]; then
     echo "$task_id failed! ($status)"
     exit 1
 fi
 
+globus task show --successful-transfers "$task_id" -F json > "$run_dir/tmp/${group}_${TIMESTAMP}_${destination}_transferred.json"
+
 module unload mugqic/globus-cli/3.24.0
 timestamp_end=$(date "+%Y-%m-%dT%H.%M.%S")
 
 # Delivery json -> DB
-~/MoH_Phase2_Automation/delivery/delivery2json.py --input "$LISTFILE_FULLPATH" --source $SRC_PLATFORM --destination $destination --output "$DELIVERY_JSON" --operation_cmd_line "globus transfer --sync-level mtime --jmespath 'task_id' --format=UNIX --submission-id $sub_id --label $group --batch $LISTFILE $SRC_EP $DEST_EP" --start $timestamp_start --stop $timestamp_end
+# before ~/MoH_Phase2_Automation/delivery/delivery2json.py --input "$LISTFILE_FULLPATH" --source $SRC_PLATFORM --destination $destination --output "$DELIVERY_JSON" --operation_cmd_line "globus transfer --sync-level mtime --jmespath 'task_id' --format=UNIX --submission-id $sub_id --label $group --batch $LISTFILE $SRC_EP $DEST_EP" --start $timestamp_start --stop $timestamp_end
+~/MoH_Phase2_Automation/delivery/delivery2json.py --input "$TRANSFERRED_JSON" --source $SRC_PLATFORM --destination $destination --output "$DELIVERY_JSON" --operation_cmd_line "..." --start $timestamp_start --stop $timestamp_end
 echo "Ingesting delivery $DELIVERY_JSON..."
 pt-cli --url-root https://project-tracking.c3g-app.dev-sd4h.ca/ --project MOH-Q ingest delivery --input-json "$DELIVERY_JSON" --no-delete
