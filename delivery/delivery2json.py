@@ -120,8 +120,8 @@ def jsonify_delivery_transfer(batch_file, source, destination, output, operation
             src_location_uri = f"{source}://{src_path}"
             dest_location_uri = f"{destination}://{dest_path.strip()}"
 
-            run_dir = os.path.dirname(os.path.dirname(src_path))
-            group = os.path.basename(os.path.dirname(run_dir))
+            run_dir = os.path.dirname(src_path)
+            group = os.path.basename(run_dir)
 
             samplesheet_candidates = glob.glob(os.path.join(run_dir, "samplesheets", "*", f"{group}.samplesheet.csv"))
             samplesheet_main = max(samplesheet_candidates, key=os.path.getmtime)
