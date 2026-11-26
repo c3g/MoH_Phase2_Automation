@@ -5,7 +5,6 @@ import glob
 import json
 import os
 import logging
-from ..analysis.oncoanalyser2json import parse_samplesheet
 
 logging.basicConfig(format='%(levelname)s: %(asctime)s - %(message)s', level=logging.INFO)
 logger = logging.getLogger(__name__)
@@ -37,6 +36,34 @@ def main():
             start = args.start,
             stop = args.stop                                                                                                                                            
             )
+
+def parse_samplesheet(samplesheet):
+    """
+    Parse samplesheet for oncoanalyser run for samples and readsets.
+    """
+    samples = {}
+
+    with open(samplesheet, encoding='utf-8') as f:
+        for row in csv.DictReader(f):
+            sample = row["sample_id"]
+            info = dict(part.split(":", 1) for part in row["info"].split(";") if ":" in part)
+            readset = info.get("library_id")
+            if row["sample_type"] == "tumor" and row["sequence_type"] == "dna":
+                tumor_dna = sample
+                role = "tumor"
+            if row["sequence_type"] == "rna":
+                role = "rna"
+            if row["sample_type"] == "normal":
+                role = "normal"
+
+            if sample not in samples.keys():
+                samples[sample] = {"readsets": [readset]}
+            else:
+                samples[sample]["readsets"].append(readset)
+            samples[sample]["role"] = role
+
+    return samples, tumor_dna
+
 
 def _append_file(json_output, readset_name, src_location_uri, dest_location_uri):
     """Append a file entry to an existing readset or create a new one."""
