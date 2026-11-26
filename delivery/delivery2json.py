@@ -124,14 +124,14 @@ def jsonify_delivery_transfer(batch_file, source, destination, output, operation
             group = os.path.basename(run_dir)
 
             samplesheet_candidates = glob.glob(os.path.join(run_dir, "samplesheets", "*", f"{group}.samplesheet.csv"))
+            if not samplesheet_candidates:
+                raise FileNotFoundError(f"No samplesheet found in {run_dir}")
             samplesheet_main = max(samplesheet_candidates, key=os.path.getmtime)
-            if not samplesheet_main:
-                raise FileNotFoundError(f"No main samplesheet found in folder {args.input}")
-            samples = parse_samplesheet(samplesheet_main)
+            samples, tumor_dna = parse_samplesheet(samplesheet_main)
 
-            for sample, readsets in samples.items():
-                _append_file(json_output, readset, src_location_uri, dest_location_uri)
-            
+            for sample, value in samples.items():
+                for readset in value["readsets"]:
+                    _append_file(json_output, readset, src_location_uri, dest_location_uri)   
     with open(output, 'w', encoding='utf-8') as file:
         json.dump(json_output, file, ensure_ascii=False, indent=4)
 
