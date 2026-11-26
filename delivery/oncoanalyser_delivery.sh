@@ -37,13 +37,13 @@ fi
 
 # Source: Cardinal
 SRC_PLATFORM="cardinal"
-SRC_EP="ee0ec49b-7bf7-4b25-9030-2e19c03476ca" # from MoH1 globus_collections.json
+SRC_EP="00aa3ab7-8dc3-4c89-81bc-1d006c31a36f"
 SRC_BASE_PATH="/project/60007/MOH_PHASE2/MAIN"
 
 # Destination: the bucket
 case "$destination" in
     c3g-data-repos)
-        DEST_EP="2cef98ab-568d-4136-9e0c-8391215dd929"
+        DEST_EP="973962f0-127f-401c-a428-26a9fae7417e"
         DEST_LOC="MOH-Q"
         ;;
     *)
