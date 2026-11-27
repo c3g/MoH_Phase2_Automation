@@ -72,7 +72,7 @@ if [ -z "$institution" ] || [ "$cohort" = "null" ] || [ "$institution" = "null" 
     echo "ERROR: cohort/institution of $specimen not found in the DB."
     exit 1
 fi
-DEST_PATH="institution/$cohort/$specimen/$group/results"
+DEST_PATH="$institution/$cohort/$specimen/$group/results"
 
 #TIMESTAMPS
 TIMESTAMP=$(date +%FT%H.%M.%S) #for josn lists filenamses
@@ -98,8 +98,6 @@ if [[ ! -f "$ENV_FILE" ]]; then
 fi
 source "$ENV_FILE"
 
- # Transfer of the results folder
-# Generate and store a UUID for the submission-id
 sub_id="$(globus task generate-submission-id)"
 # Start the batch transfer
 task_id="$(globus transfer --sync-level mtime --jmespath 'task_id' --format=UNIX --submission-id "$sub_id" --label "$group" --batch "$LISTFILE" $SRC_EP $DEST_EP)"
@@ -120,7 +118,6 @@ module unload mugqic/globus-cli/3.24.0
 timestamp_end=$(date "+%Y-%m-%dT%H.%M.%S")
 
 # Delivery json -> DB
-# before ~/MoH_Phase2_Automation/delivery/delivery2json.py --input "$LISTFILE_FULLPATH" --source $SRC_PLATFORM --destination $destination --output "$DELIVERY_JSON" --operation_cmd_line "globus transfer --sync-level mtime --jmespath 'task_id' --format=UNIX --submission-id $sub_id --label $group --batch $LISTFILE $SRC_EP $DEST_EP" --start $timestamp_start --stop $timestamp_end
-~/MoH_Phase2_Automation/delivery/delivery2json.py --input "$TRANSFERRED_JSON" --source $SRC_PLATFORM --destination $destination --output "$DELIVERY_JSON" --operation_cmd_line "..." --start $timestamp_start --stop $timestamp_end
+~/MoH_Phase2_Automation/delivery/delivery2json.py --input "$TRANSFERRED_JSON" --source $SRC_PLATFORM --destination $destination --output "$DELIVERY_JSON" --operation_cmd_line "globus transfer --sync-level mtime --jmespath 'task_id' --format=UNIX --submission-id $sub_id --label $group --batch $LISTFILE $SRC_EP $DEST_EP" --start $timestamp_start --stop $timestamp_end
 echo "Ingesting delivery $DELIVERY_JSON..."
 pt-cli --url-root https://project-tracking.c3g-app.dev-sd4h.ca/ --project MOH-Q ingest delivery --input-json "$DELIVERY_JSON" --no-delete
