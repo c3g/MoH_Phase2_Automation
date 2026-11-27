@@ -438,7 +438,7 @@ def percent_bases_over_q30_check(sample, value):
     """ Percent bases over q30 metric check """
     if not value:
         ret = "MISSING"
-        logger.warning(f"Missing 'percent_bases_over_q30' value for {sample} from json.")
+        logger.warning(f"Missing 'bases_over_q30' value for {sample} from json.")
     elif float(value)<80:
         ret = "WARNING"
     elif float(value)<75:
@@ -483,7 +483,7 @@ def sex_concordance_check(sample, value):
 def raw_exonic_rate_check(sample, ffpe, value):
     """ Check exonic rate metric and set flag based on ffpe status """
     if not value:
-        logger.warning(f"Missing 'raw_exonic_rate' value for {sample} from json.")
+        logger.warning(f"Missing 'exonic_rate' value for {sample} from json.")
         return "MISSING"
     if float(value)<0.05:
         return "FAIL"
@@ -499,7 +499,7 @@ def raw_rrna_rate_check(sample, value):
     """ Check raw rRNA rate metric """
     if not value:
         ret = "MISSING"
-        logger.warning(f"Missing 'raw_rRNA_rate' value for {sample} from json.")
+        logger.warning(f"Missing 'rRNA_rate' value for {sample} from json.")
     elif float(value)>0.10:
         ret = "WARNING"
     elif float(value)>0.35:
