@@ -1,7 +1,6 @@
 #!/usr/bin/env python3
 
 import argparse
-import glob
 import json
 import os
 import logging
@@ -16,7 +15,7 @@ def main():
     """ Main  """
     parser = argparse.ArgumentParser(prog='delivery2json.py', description="Creates json file for project tracking database for a given delivery of data.")
     parser.add_argument('-i', '--input', required=True, help="Globus list of transferred files (globus task show --successful-transfers -F json).")
-    parser.add_argument('-r', '--run_dir', required=True, help="Run folder of the analysis (holds the oncoanalyser json).")
+    parser.add_argument('--db_files', required=True, nargs='+', help="Output(s) of 'pt-cli digest delivery' (one per nucleic acid type).")
     parser.add_argument('-s', '--source', required=True, help="Source cluster of the transfer.")
     parser.add_argument('-d', '--destination', required=True, help="Bucket of destination for the transfer.")
     parser.add_argument('-o', '--output', required=False, help="Output json filename (Default: <input_filename>.json).")
@@ -33,7 +32,7 @@ def main():
 
     jsonify_delivery_transfer(
             transferred_json = args.input,
-            run_dir = args.run_dir,
+            db_files = args.db_files,
             source = args.source,
             destination = args.destination.lower(),
             output = output,
@@ -67,24 +66,22 @@ def _append_file(json_output, readset_name, src_location_uri, dest_location_uri)
             }
         )
 
-def readsets_by_uri(run_dir):
-    """location_uri -> [readset names], from the run's analysis json (= what was ingested in the DB)"""
-    group = os.path.basename(run_dir)
-    analysis_json = sorted(glob.glob(os.path.join(run_dir, f"{group}.oncoanalyser.*.json")))[-1]
-    with open(analysis_json, encoding='utf-8') as aj:
-        analysis = json.load(aj)
-
+def readsets_by_path(db_files):
+    """file path on Cardinal -> [readset names], from 'pt-cli digest delivery' (the DB)"""
     mapping = {}
-    for sample in analysis["sample"]:
-        for readset in sample["readset"]:
-            for job in readset["job"]:
-                for file_entry in job.get("file", []):
-                    names = mapping.setdefault(file_entry["location_uri"], []) # sets readsets linked to the file
-                    if readset["readset_name"] not in names:
-                        names.append(readset["readset_name"])
+    for db_file in db_files:
+        with open(db_file, encoding='utf-8') as df:
+            digest = json.load(df)
+        for specimen in digest["specimen"]:
+            for sample in specimen["sample"]:
+                for readset in sample["readset"]:
+                    for file_entry in readset["file"]:
+                        names = mapping.setdefault(os.path.normpath(file_entry["location"]), []) 
+                        if readset["name"] not in names:
+                            names.append(readset["name"])
     return mapping
 
-def jsonify_delivery_transfer(transferred_json, run_dir, source, destination, output, operation_cmd_line, start=None, stop=None):    
+def jsonify_delivery_transfer(transferred_json, db_files, source, destination, output, operation_cmd_line, start=None, stop=None):
     """Writing delivery json: one entry per file Globus copied that is tracked in the DB"""
 
     start = start.replace('.', ':').replace('T', ' ') if start else None
@@ -100,7 +97,7 @@ def jsonify_delivery_transfer(transferred_json, run_dir, source, destination, ou
 
 
     # map all files to readsets from the run's analysis json
-    readsets_of = readsets_by_uri(run_dir)
+    readsets_of = readsets_by_path(db_files)
 
     # read full file list fron globus
     with open(transferred_json, encoding='utf-8') as tj:
@@ -116,7 +113,7 @@ def jsonify_delivery_transfer(transferred_json, run_dir, source, destination, ou
         src_location_uri = f"{source}://{src_path}"                            # cardinal:///project/.../results/purple/x.tsv
         dest_location_uri = f"{destination}://{DEST_BASE_PATH}/{dest_path}"     # c3g-data-repos:///MOH-Q/<inst>/.../results/purple/x.tsv
 
-        readset_names = readsets_of.get(src_location_uri)
+        readset_names = readsets_of.get(os.path.normpath(src_path))
         if not readset_names:
             logger.info(f"Not tracked in the DB, skipped: {src_path}")   # e.g. pipeline_info/*
             continue

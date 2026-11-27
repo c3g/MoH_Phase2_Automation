@@ -44,7 +44,6 @@ SRC_BASE_PATH="/project/60007/MOH_PHASE2/MAIN"
 case "$destination" in
     c3g-data-repos)
         DEST_EP="973962f0-127f-401c-a428-26a9fae7417e"
-        DEST_LOC="MOH-Q" #needed?
         ;;
     *)
         echo "ERROR: Unknown destination: $destination"
@@ -119,17 +118,18 @@ module unload mugqic/globus-cli/3.24.0
 unset PYTHONPATH 
 
 # Files of the specimen in the DB
-#DB_FILES_DNA="$run_dir/tmp/${group}_${TIMESTAMP}_db_files_DNA.json"
-#DB_FILES_RNA="$run_dir/tmp/${group}_${TIMESTAMP}_db_files_RNA.json"
-#for type in DNA RNA; do
-#    pt-cli --url-root https://project-tracking.c3g-app.dev-sd4h.ca/ --project MOH-Q digest delivery \
-#        --specimen_name "$specimen" --endpoint "$SRC_PLATFORM" --experiment_nucleic_acid_type "$type" \
-#        -o "$run_dir/tmp/${group}_${TIMESTAMP}_db_files_${type}.json"
-#done
+DB_FILES_DNA="$run_dir/tmp/${group}_${TIMESTAMP}_db_files_DNA.json"
+DB_FILES_RNA="$run_dir/tmp/${group}_${TIMESTAMP}_db_files_RNA.json"
+for type in DNA RNA; do
+    pt-cli --url-root https://project-tracking.c3g-app.dev-sd4h.ca/ --project MOH-Q digest delivery \
+        --specimen_name "$specimen" --endpoint "$SRC_PLATFORM" --experiment_nucleic_acid_type "$type" \
+        -o "$run_dir/tmp/${group}_${TIMESTAMP}_db_files_${type}.json"
+done
 
 timestamp_end=$(date "+%Y-%m-%dT%H.%M.%S")
 
 # Delivery json -> DB
-#~/MoH_Phase2_Automation/delivery/delivery2json.py --input "$TRANSFERRED_JSON" --db_files "$DB_FILES_DNA" "$DB_FILES_RNA" --source $SRC_PLATFORM --destination $destination --output "$DELIVERY_JSON" --operation_cmd_line "globus transfer --sync-level mtime --jmespath 'task_id' --format=UNIX --submission-id $sub_id --label $group --batch $LISTFILE $SRC_EP $DEST_EP" --start $timestamp_start --stop $timestamp_endecho "Ingesting delivery $DELIVERY_JSON..."
-~/MoH_Phase2_Automation/delivery/delivery2json.py --input "$TRANSFERRED_JSON" --run_dir "$run_dir" --source $SRC_PLATFORM --destination $destination --output "$DELIVERY_JSON" --operation_cmd_line "globus transfer --sync-level mtime --exclude logs --exclude pipeline_info --jmespath 'task_id' --format=UNIX --submission-id $sub_id --label $group --batch $LISTFILE $SRC_EP $DEST_EP" --start $timestamp_start --stop $timestamp_endecho "Ingesting delivery $DELIVERY_JSON..."
+~/MoH_Phase2_Automation/delivery/delivery2json.py --input "$TRANSFERRED_JSON" --db_files "$DB_FILES_DNA" "$DB_FILES_RNA" --source $SRC_PLATFORM --destination $destination --output "$DELIVERY_JSON" --operation_cmd_line "globus transfer --sync-level mtime --exclude logs --exclude pipeline_info --jmespath 'task_id' --format=UNIX --submission-id $sub_id --label $group --batch $LISTFILE $SRC_EP $DEST_EP" --start $timestamp_start --stop $timestamp_end
+echo "Ingesting delivery $DELIVERY_JSON..."
+
 pt-cli --url-root https://project-tracking.c3g-app.dev-sd4h.ca/ --project MOH-Q ingest delivery --input-json "$DELIVERY_JSON" --no-delete
