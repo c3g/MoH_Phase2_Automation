@@ -76,14 +76,11 @@ DEST_PATH="$DEST_LOC/$institution/$cohort/$specimen/$group/results"
 
 # List + json of the delivery, in the run's tmp/ (cleaned by a cron job after days)
 TIMESTAMP=$(date +%FT%H.%M.%S)
-LISTFILE="$run_dir/tmp/${group}_${TIMESTAMP}_${destination}_delivery.list"
-LISTFILE_FULLPATH="$run_dir/tmp/${group}_${TIMESTAMP}_${destination}_delivery_fullpath.list"   # for delivery2json.py: <src> <dest>, full path
+LISTFILE="$run_dir/tmp/${group}_${TIMESTAMP}_${destination}_delivery.list" #batchfile for transfer
 DELIVERY_JSON="$run_dir/tmp/${group}_${TIMESTAMP}_${destination}_delivery.json"
 timestamp_start=$(date "+%Y-%m-%dT%H.%M.%S")
 # One line for the whole results folder
 echo "--recursive ${src#"$SRC_BASE_PATH"} $DEST_PATH" > "$LISTFILE" #for globus
-echo "$src $DEST_PATH" > "$LISTFILE_FULLPATH"         # for delivery2json.py
-
 
 # Load globus module
 module use /cvmfs/soft.mugqic/CentOS6/modulefiles
