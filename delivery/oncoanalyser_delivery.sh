@@ -113,12 +113,12 @@ if [ "$status" != "SUCCEEDED" ]; then
     exit 1
 fi
 
+#list all transferred files
 globus task show --successful-transfers "$task_id" -F json > "$TRANSFERRED_JSON"
 module unload mugqic/globus-cli/3.24.0
 unset PYTHONPATH 
 timestamp_end=$(date "+%Y-%m-%dT%H.%M.%S")
 
 # Delivery json -> DB
-~/MoH_Phase2_Automation/delivery/delivery2json.py --input "$TRANSFERRED_JSON" --source $SRC_PLATFORM --destination $destination --output "$DELIVERY_JSON" --operation_cmd_line "globus transfer --sync-level mtime --jmespath 'task_id' --format=UNIX --submission-id $sub_id --label $group --batch $LISTFILE $SRC_EP $DEST_EP" --start $timestamp_start --stop $timestamp_end
-echo "Ingesting delivery $DELIVERY_JSON..."
+~/MoH_Phase2_Automation/delivery/delivery2json.py --input "$TRANSFERRED_JSON" --run_dir "$run_dir" --source $SRC_PLATFORM --destination $destination --output "$DELIVERY_JSON" --operation_cmd_line "globus transfer --sync-level mtime --jmespath 'task_id' --format=UNIX --submission-id $sub_id --label $group --batch $LISTFILE $SRC_EP $DEST_EP" --start $timestamp_start --stop $timestamp_endecho "Ingesting delivery $DELIVERY_JSON..."
 pt-cli --url-root https://project-tracking.c3g-app.dev-sd4h.ca/ --project MOH-Q ingest delivery --input-json "$DELIVERY_JSON" --no-delete
