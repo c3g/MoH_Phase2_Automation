@@ -82,8 +82,19 @@ LISTFILE="$run_dir/tmp/${group}_${TIMESTAMP}_${destination}_delivery.list" #batc
 TRANSFERRED_JSON="$run_dir/tmp/${group}_${TIMESTAMP}_${destination}_transferred.json" #keep all files copied by globus
 DELIVERY_JSON="$run_dir/${group}.delivery.${TIMESTAMP}.json" #output of delivery2json (ingested in the db)
 
-# One line batchfile for the whole results folder
-echo "--recursive ${src#"$SRC_BASE_PATH"} $DEST_PATH" > "$LISTFILE"
+# One batch line per item of results/, except logs/ and pipeline_info/ (not delivered)
+: > "$LISTFILE"
+for item in "$src"/*; do
+    name=$(basename "$item")
+    case "$name" in
+        logs|pipeline_info) continue ;;
+    esac
+    if [ -d "$item" ]; then
+        echo "--recursive ${item#"$SRC_BASE_PATH"} $DEST_PATH/$name" >> "$LISTFILE"
+    else
+        echo "${item#"$SRC_BASE_PATH"} $DEST_PATH/$name" >> "$LISTFILE"
+    fi
+done
 
 # Load globus module
 module use /cvmfs/soft.mugqic/CentOS6/modulefiles
@@ -99,7 +110,7 @@ source "$ENV_FILE"
 
 sub_id="$(globus task generate-submission-id)"
 # Start the batch transfer
-task_id="$(globus transfer --sync-level mtime --exclude logs --exclude pipeline_info --jmespath 'task_id' --format=UNIX --submission-id "$sub_id" --label "$group" --batch "$LISTFILE" $SRC_EP $DEST_EP)"
+task_id="$(globus transfer --sync-level mtime --jmespath 'task_id' --format=UNIX --submission-id "$sub_id" --label "$group" --batch "$LISTFILE" $SRC_EP $DEST_EP)"
 echo -e "Waiting on 'globus transfer' task '$task_id'.\nTo monitor the transfer see: https://app.globus.org/activity/$task_id/overview"
 
 echo "$task_id" > "$run_dir/tmp/${group}_${TIMESTAMP}_globus_task_id"
@@ -144,7 +155,7 @@ done
 timestamp_end=$(date "+%Y-%m-%dT%H.%M.%S")
 
 # Delivery json -> DB
-~/MoH_Phase2_Automation/delivery/delivery2json.py --input "$TRANSFERRED_JSON" --db_files "$DB_FILES_DNA" "$DB_FILES_RNA" --source $SRC_PLATFORM --destination $destination --output "$DELIVERY_JSON" --operation_cmd_line "globus transfer --sync-level mtime --exclude logs --exclude pipeline_info --jmespath 'task_id' --format=UNIX --submission-id $sub_id --label $group --batch $LISTFILE $SRC_EP $DEST_EP" --start $timestamp_start --stop $timestamp_end
+~/MoH_Phase2_Automation/delivery/delivery2json.py --input "$TRANSFERRED_JSON" --db_files "$DB_FILES_DNA" "$DB_FILES_RNA" --source $SRC_PLATFORM --destination $destination --output "$DELIVERY_JSON" --operation_cmd_line "globus transfer --sync-level mtime --jmespath 'task_id' --format=UNIX --submission-id $sub_id --label $group --batch $LISTFILE $SRC_EP $DEST_EP" --start $timestamp_start --stop $timestamp_end
 echo "Ingesting delivery $DELIVERY_JSON..."
 
 pt-cli --url-root https://project-tracking.c3g-app.dev-sd4h.ca/ --project MOH-Q ingest delivery --input-json "$DELIVERY_JSON" --no-delete
