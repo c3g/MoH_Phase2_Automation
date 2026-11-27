@@ -74,11 +74,15 @@ if [ -z "$institution" ] || [ "$cohort" = "null" ] || [ "$institution" = "null" 
 fi
 DEST_PATH="$DEST_LOC/$institution/$cohort/$specimen/$group/results"
 
-# List + json of the delivery, in the run's tmp/ (cleaned by a cron job after days)
-TIMESTAMP=$(date +%FT%H.%M.%S)
+#TIMESTAMPS
+TIMESTAMP=$(date +%FT%H.%M.%S) #for josn lists filenamses
+timestamp_start=$(date "+%Y-%m-%dT%H.%M.%S") #tell db the delivery starttime
+
+# LIST ADN JSONS
 LISTFILE="$run_dir/tmp/${group}_${TIMESTAMP}_${destination}_delivery.list" #batchfile for transfer
-DELIVERY_JSON="$run_dir/tmp/${group}_${TIMESTAMP}_${destination}_delivery.json"
-timestamp_start=$(date "+%Y-%m-%dT%H.%M.%S")
+TRANSFERRED_JSON="$run_dir/tmp/${group}_${TIMESTAMP}_${destination}_transferred.json" #keep all files copied by globus
+DELIVERY_JSON="$run_dir/tmp/${group}_${TIMESTAMP}_${destination}_delivery.json" #output of delivery2json
+
 # One line for the whole results folder
 echo "--recursive ${src#"$SRC_BASE_PATH"} $DEST_PATH" > "$LISTFILE" #for globus
 
@@ -111,8 +115,7 @@ if [ "$status" != "SUCCEEDED" ]; then
     exit 1
 fi
 
-globus task show --successful-transfers "$task_id" -F json > "$run_dir/tmp/${group}_${TIMESTAMP}_${destination}_transferred.json"
-
+globus task show --successful-transfers "$task_id" -F json > "$TRANSFERRED_JSON"
 module unload mugqic/globus-cli/3.24.0
 timestamp_end=$(date "+%Y-%m-%dT%H.%M.%S")
 
