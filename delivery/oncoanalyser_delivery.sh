@@ -44,7 +44,7 @@ SRC_BASE_PATH="/project/60007/MOH_PHASE2/MAIN"
 case "$destination" in
     c3g-data-repos)
         DEST_EP="973962f0-127f-401c-a428-26a9fae7417e"
-        DEST_LOC="MOH-Q"
+        DEST_LOC="MOH-Q" #needed?
         ;;
     *)
         echo "ERROR: Unknown destination: $destination"
@@ -115,6 +115,7 @@ fi
 
 globus task show --successful-transfers "$task_id" -F json > "$TRANSFERRED_JSON"
 module unload mugqic/globus-cli/3.24.0
+unset PYTHONPATH 
 timestamp_end=$(date "+%Y-%m-%dT%H.%M.%S")
 
 # Delivery json -> DB
