@@ -72,7 +72,7 @@ if [ -z "$institution" ] || [ "$cohort" = "null" ] || [ "$institution" = "null" 
     echo "ERROR: cohort/institution of $specimen not found in the DB."
     exit 1
 fi
-DEST_PATH="$DEST_LOC/$institution/$cohort/$specimen/$group/results"
+DEST_PATH="institution/$cohort/$specimen/$group/results"
 
 #TIMESTAMPS
 TIMESTAMP=$(date +%FT%H.%M.%S) #for josn lists filenamses
@@ -83,8 +83,8 @@ LISTFILE="$run_dir/tmp/${group}_${TIMESTAMP}_${destination}_delivery.list" #batc
 TRANSFERRED_JSON="$run_dir/tmp/${group}_${TIMESTAMP}_${destination}_transferred.json" #keep all files copied by globus
 DELIVERY_JSON="$run_dir/tmp/${group}_${TIMESTAMP}_${destination}_delivery.json" #output of delivery2json
 
-# One line for the whole results folder
-echo "--recursive ${src#"$SRC_BASE_PATH"} $DEST_PATH" > "$LISTFILE" #for globus
+# One line batchfile for the whole results folder
+echo "--recursive ${src#"$SRC_BASE_PATH"} $DEST_PATH" > "$LISTFILE"
 
 # Load globus module
 module use /cvmfs/soft.mugqic/CentOS6/modulefiles
