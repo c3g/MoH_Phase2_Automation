@@ -255,7 +255,7 @@ def jsonify_run_processing(input_run_folder, fms_json, lanes_json, output, lanes
 
                         metric_json = [
                             {
-                                "metric_name": "raw_reads_count",
+                                "metric_name": "raw_clusters",
                                 "metric_value": raw_reads_count,
                                 "metric_flag": raw_reads_count_flag,
                                 "metric_deliverable": True
@@ -281,27 +281,27 @@ def jsonify_run_processing(input_run_folder, fms_json, lanes_json, output, lanes
                                 "metric_flag": raw_mean_coverage_flag
                                 },
                             {
-                                "metric_name": "raw_percent_bases_over_q30",
+                                "metric_name": "bases_over_q30",
                                 "metric_value": raw_percent_bases_over_q30,
                                 "metric_flag": raw_percent_bases_over_q30_flag
                                 },
                             {
-                                "metric_name": "blast_1st_hit",
+                                "metric_name": "species_check",
                                 "metric_value": blast_1st_hit,
                                 "metric_flag": blast_1st_hit_flag
                                 },
                             {
-                                "metric_name": "raw_freemix",
+                                "metric_name": "freemix",
                                 "metric_value": raw_freemix,
                                 "metric_flag": raw_freemix_flag
                                 },
                             {
-                                "metric_name": "raw_exonic_rate",
+                                "metric_name": "exonic_rate",
                                 "metric_value": raw_exonic_rate,
                                 "metric_flag": raw_exonic_rate_flag
                                 },
                             {
-                                "metric_name": "raw_rrna_rate",
+                                "metric_name": "rrna_rate",
                                 "metric_value": raw_rrna_rate,
                                 "metric_flag": raw_rrna_rate_flag
                                 },
