@@ -102,8 +102,18 @@ sub_id="$(globus task generate-submission-id)"
 task_id="$(globus transfer --sync-level mtime --exclude logs --exclude pipeline_info --jmespath 'task_id' --format=UNIX --submission-id "$sub_id" --label "$group" --batch "$LISTFILE" $SRC_EP $DEST_EP)"
 echo -e "Waiting on 'globus transfer' task '$task_id'.\nTo monitor the transfer see: https://app.globus.org/activity/$task_id/overview"
 
+echo "$task_id" > "$run_dir/tmp/${group}_${TIMESTAMP}_globus_task_id"
+
+# retry to get status for 30 mins
+fails=0
 until status=$(globus task show "$task_id" --jmespath status --format=UNIX 2>/dev/null) \
       && [[ "$status" =~ ^(SUCCEEDED|FAILED)$ ]]; do
+    if [ -z "$status" ]; then
+        fails=$((fails + 1))
+        [ "$fails" -ge 30 ] && { echo "ERROR: cannot get status of task $task_id for 30 min"; exit 1; }
+    else
+        fails=0
+    fi
     sleep 60
 done
 
@@ -112,8 +122,13 @@ if [ "$status" != "SUCCEEDED" ]; then
     exit 1
 fi
 
-#list all transferred files
-globus task show --successful-transfers "$task_id" -F json > "$TRANSFERRED_JSON"
+#list all transferred files (retry: the copy is already done, don't lose the list)
+for attempt in 1 2 3; do
+    globus task show --successful-transfers "$task_id" -F json > "$TRANSFERRED_JSON" && break
+    sleep 10
+done
+[ -s "$TRANSFERRED_JSON" ] || { echo "ERROR: no transferred files list for task $task_id"; exit 1; }
+
 module unload mugqic/globus-cli/3.24.0
 unset PYTHONPATH 
 
