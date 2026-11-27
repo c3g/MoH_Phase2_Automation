@@ -80,7 +80,7 @@ timestamp_start=$(date "+%Y-%m-%dT%H.%M.%S") #tell db the delivery starttime
 # LIST ADN JSONS
 LISTFILE="$run_dir/tmp/${group}_${TIMESTAMP}_${destination}_delivery.list" #batchfile for transfer
 TRANSFERRED_JSON="$run_dir/tmp/${group}_${TIMESTAMP}_${destination}_transferred.json" #keep all files copied by globus
-DELIVERY_JSON="$run_dir/tmp/${group}_${TIMESTAMP}_${destination}_delivery.json" #output of delivery2json
+DELIVERY_JSON="$run_dir/${group}.delivery.${TIMESTAMP}.json" #output of delivery2json (ingested in the db)
 
 # One line batchfile for the whole results folder
 echo "--recursive ${src#"$SRC_BASE_PATH"} $DEST_PATH" > "$LISTFILE"
