@@ -90,6 +90,12 @@ module use /cvmfs/soft.mugqic/CentOS6/modulefiles
 module load mugqic/globus-cli/3.24.0
 
 ENV_DIR="$HOME/.config/globus_cli"
+ENV_FILE="$ENV_DIR/Cardinal_to_c3g-data-reposMOH-Q.sh"
+if [[ ! -f "$ENV_FILE" ]]; then
+    echo "ERROR: Expected environment file '$ENV_FILE' not found." >&2
+    exit 1
+fi
+source "$ENV_FILE"
 
  # Transfer of the results folder
 # Generate and store a UUID for the submission-id
